@@ -119,6 +119,7 @@ svg.plot{width:100%;height:auto;display:block;margin-top:8px}
 /* 시작 방식, 회로도 */
 .startbox{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-6px 0 18px}
 .dcard.wide{grid-column:1/-1}
+svg.scope{width:100%;height:auto;display:block;margin-top:8px;border-radius:6px}
 svg.circ{width:100%;height:auto;display:block;margin-top:8px;background:var(--card);border-radius:6px}
 
 .toast{
@@ -346,6 +347,8 @@ function detail(s){
   var virt = mine.filter(function(m){ return m.kind === "가상"; });
   var h = '<div class="dgrid">';
   if(s.circuit && s.circuit.parts && s.circuit.parts.length) h += circuitCard(s.circuit);
+  if(s.circuit && s.circuit.tables) h += tablesCard(s.circuit.tables);
+  (s.waves || []).forEach(function(wv){ h += '<div class="dcard"><h2>'+esc(wv.label || "파형")+'</h2>'+waveSVG(wv)+'</div>'; });
   if(real.length) h += card("실측값", real, s.R, s.r2, "");
   if(virt.length) h += card("가상 실험", virt, s.vR, s.vr2, s.setup);
   if(!real.length && !virt.length) h += '<p class="muted">측정값이 없습니다.</p>';
@@ -365,6 +368,38 @@ function circuitCard(c){
   return '<div class="dcard wide"><h2>학생이 만든 회로</h2>'
        + '<svg class="circ" viewBox="'+x0+' '+y0+' '+(x1-x0)+' '+(y1-y0)+'" role="img" aria-label="학생이 만든 회로도">'
        + defs + circuitSVG(ok, null, {}) + '</svg></div>';
+}
+
+// RLC 공진(진동수–전류)과 플랑크 상수(파장–문턱 전압) 기록
+function tablesCard(tb){
+  var h = '', fi = tb.fi || [], lv = tb.lv || [], tr = tb.tr || [], tp = tb.trp || { rb:22, rc:0.33, vbe:0.6 };
+  if(tr.length){
+    h += '<div class="dcard"><h2>트랜지스터 증폭 기록</h2><p class="muted">베이스 저항 '+tp.rb+' kΩ, 부하 저항 '+tp.rc+' kΩ, 작동 전압 '+tp.vbe+' V로 계산</p>'
+       + '<table class="mini"><thead><tr><th class="n">입력 (V)</th><th class="n">출력 (V)</th><th class="n">I_B (mA)</th><th class="n">I_C (mA)</th><th class="n">증폭률</th></tr></thead><tbody>'
+       + tr.map(function(q){ var ib = (q[0]-tp.vbe)/tp.rb, ic = q[1]/tp.rc;
+           return '<tr><td class="n">'+fmt(q[0],3)+'</td><td class="n">'+fmt(q[1],3)+'</td><td class="n">'+fmt(ib,4)+'</td><td class="n">'+fmt(ic,3)+'</td><td class="n">'+(ib > 0 ? fmt(ic/ib,1) : "—")+'</td></tr>'; }).join("")
+       + '</tbody></table></div>';
+  }
+  if(fi.length){
+    var best = fi.reduce(function(m, q){ return !m || q[1] > m[1] ? q : m; }, null);
+    h += '<div class="dcard"><h2>RLC 공진 기록</h2><p class="muted">전류가 가장 클 때 진동수 '+fmt(best[0],1)+' Hz ('+fmt(best[1],2)+' mA)</p>'
+       + '<table class="mini"><thead><tr><th class="n">진동수 (Hz)</th><th class="n">전류 진폭 (mA)</th></tr></thead><tbody>'
+       + fi.slice().sort(function(a,b){ return a[0]-b[0]; }).map(function(q){ return '<tr><td class="n">'+fmt(q[0],1)+'</td><td class="n">'+fmt(q[1],2)+'</td></tr>'; }).join("")
+       + '</tbody></table></div>';
+  }
+  if(lv.length){
+    var xs = lv.map(function(q){ return 2997.92458/q[0]; }), ys = lv.map(function(q){ return q[1]; }), n = xs.length, hp = null;
+    if(n >= 2){
+      var sx=0, sy=0, sxy=0, sxx=0;
+      for(var k=0;k<n;k++){ sx+=xs[k]; sy+=ys[k]; sxy+=xs[k]*ys[k]; sxx+=xs[k]*xs[k]; }
+      var den = n*sxx - sx*sx; if(den) hp = 1.602e-19*((n*sxy - sx*sy)/den)/1e14;
+    }
+    h += '<div class="dcard"><h2>플랑크 상수 기록</h2><p class="muted">측정값 '+(hp ? fmt(hp/1e-34,3)+' ×10⁻³⁴ J·s (이론값과 '+fmt((hp-6.626e-34)/6.626e-34*100,1)+' % 차이)' : '—')+'</p>'
+       + '<table class="mini"><thead><tr><th class="n">파장 (nm)</th><th class="n">진동수 (10¹⁴ Hz)</th><th class="n">문턱 전압 (V)</th></tr></thead><tbody>'
+       + lv.map(function(q){ return '<tr><td class="n">'+fmt(q[0],1)+'</td><td class="n">'+fmt(2997.92458/q[0],3)+'</td><td class="n">'+fmt(q[1],2)+'</td></tr>'; }).join("")
+       + '</tbody></table></div>';
+  }
+  return h;
 }
 
 function card(title, pts, R, r2, note){
@@ -426,9 +461,10 @@ function plot(pts){
 var RED = "#C8452E";
 var BAND = ["#1A1A1A","#7A4A1E","#C62828","#E65100","#F9A825","#2E7D32","#1565C0","#6A1B9A","#757575","#F5F5F5"];
 var LEDS = {
-  red:  { name:"빨강", col:"#E53935", Is:8.4e-18 },
-  green:{ name:"초록", col:"#43A047", Is:2.6e-20 },
-  blue: { name:"파랑", col:"#1E88E5", Is:4.8e-27 }
+  red:   { name:"빨강", col:"#E53935", nm:635 },
+  yellow:{ name:"노랑", col:"#FDD835", nm:592 },
+  green: { name:"초록", col:"#43A047", nm:561 },
+  blue:  { name:"파랑", col:"#1E88E5", nm:468 }
 };
 function mix(a, b, t){
   t = Math.max(0, Math.min(1, t));
@@ -444,43 +480,61 @@ function hot(T){
   if(T < 1100) return mix("#C62828","#FF8F00",(T-700)/400);
   return mix("#FF8F00","#FFE082",(T-1100)/1200);
 }
+// 저항값 → 색 띠 (두 자리 + 곱하는 수 + 오차)
 function bands(R){
-  var e = 0;
-  while(R >= 100){ R /= 10; e++; }
-  return [BAND[Math.floor(R/10)], BAND[Math.round(R%10)], BAND[e], "#C9A227"];
+  if(!(R > 0)) R = 1;
+  var e = Math.floor(Math.log(R)/Math.LN10 + 1e-9) - 1, d = Math.round(R/Math.pow(10, e));
+  if(d >= 100){ d = Math.round(d/10); e++; }
+  var mult = e >= 0 ? BAND[Math.min(e, 9)] : (e === -1 ? "#C9A227" : "#B0B0B0");
+  return [BAND[Math.floor(d/10) % 10], BAND[d % 10], mult, "#C9A227"];
 }
-function ohm(r){ return r >= 1000 ? (r/1000) + " kΩ" : r + " Ω"; }
+function trim3(x){ return String(Math.round(x*1000)/1000); }
+function ohm(r){
+  if(r >= 1e6) return trim3(r/1e6) + " MΩ";
+  if(r >= 1000) return trim3(r/1000) + " kΩ";
+  return trim3(r) + " Ω";
+}
 
 var DEFS = {
+  ac:       { name:"전원 장치", terms:[[-60,0,"−"],[60,0,"+"]], def:{mode:"dc", v:1, f:100}, box:[128,56],
+              label:function(p){ return p.mode === "dc" ? "전원 장치 직류 " + trim3(p.v) + " V" : "전원 장치 사인파 " + trim3(p.v) + " V, " + trim3(p.f) + " Hz"; } },
   battery:  { name:"건전지", terms:[[-60,0,"−"],[60,0,"+"]], def:{cells:2}, box:[128,40],
               label:function(p){ return "건전지 " + p.cells + "개"; } },
-  ac:       { name:"교류 전원", terms:[[-60,0,""],[60,0,""]], def:{vp:3, f:1}, box:[128,56],
-              label:function(p){ return "교류 " + p.vp + " V, " + p.f + " Hz"; } },
   sw:       { name:"스위치", terms:[[-40,0,""],[40,0,""]], def:{on:false}, box:[92,64],
               label:function(p){ return p.on ? "스위치 켜짐" : "스위치 꺼짐"; } },
   resistor: { name:"저항기", terms:[[-40,0,""],[40,0,""]], def:{r:47}, box:[92,30],
               label:function(p){ return "저항기 " + ohm(p.r); } },
+  pot:      { name:"가변저항", terms:[[-40,0,"A"],[40,0,"B"],[0,-40,"W"]], def:{r:100, pos:50}, box:[92,84],
+              label:function(p){ return "가변저항 " + ohm(p.r) + " (" + p.pos + "%)"; } },
   nichrome: { name:"니크롬선", terms:[[-60,0,""],[60,0,""]], def:{len:50, dia:0.3}, box:[132,30],
               label:function(p){ return "니크롬선 " + p.len + " cm, " + p.dia + " mm"; } },
   lamp:     { name:"꼬마전구", terms:[[-40,0,""],[40,0,""]], def:{}, box:[92,52],
               label:function(){ return "꼬마전구 2.5 V"; } },
-  cap:      { name:"축전기", terms:[[-40,0,""],[40,0,""]], def:{c:1000}, box:[92,44],
-              label:function(p){ return "축전기 " + p.c + " µF"; } },
-  coil:     { name:"코일", terms:[[-60,0,""],[60,0,""]], def:{l:1}, box:[132,34],
-              label:function(p){ return "코일 " + p.l + " H"; } },
+  cap:      { name:"축전기", terms:[[-40,0,""],[40,0,""]], def:{c:1}, box:[92,44],
+              label:function(p){ return "축전기 " + trim3(p.c) + " µF"; } },
+  coil:     { name:"코일", terms:[[-60,0,""],[60,0,""]], def:{l:0.01}, box:[132,34],
+              label:function(p){ return "코일 " + trim3(p.l*1000) + " mH"; } },
   diode:    { name:"다이오드", terms:[[-40,0,"+"],[40,0,"−"]], def:{}, box:[92,34],
               label:function(){ return "다이오드"; } },
+  bridge:   { name:"브리지 정류기", terms:[[-50,0,"~"],[50,0,"~"],[0,-50,"+"],[0,50,"−"]], def:{}, box:[104,104],
+              label:function(){ return "브리지 정류기"; } },
   led:      { name:"LED", terms:[[-40,0,"+"],[40,0,"−"]], def:{color:"red"}, box:[92,44],
-              label:function(p){ return "LED " + LEDS[p.color].name; } },
-  npn:      { name:"트랜지스터", terms:[[-40,0,"B"],[20,-40,"C"],[20,40,"E"]], def:{beta:100}, box:[96,92],
+              label:function(p){ var L = LEDS[p.color] || LEDS.red; return "LED " + L.name + " " + L.nm + " nm"; } },
+  npn:      { name:"트랜지스터", terms:[[-40,0,"B"],[20,-40,"C"],[20,40,"E"]], def:{beta:160}, box:[96,92],
               label:function(p){ return "트랜지스터 β " + p.beta; } },
-  ammeter:  { name:"전류계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:0.5}, box:[92,52], label:null },
-  voltmeter:{ name:"전압계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:15}, box:[92,52], label:null },
-  scope:    { name:"오실로스코프", terms:[[-40,44,"1"],[0,44,"2"],[40,44,"⏚"]], def:{tdiv:0.2, vdiv:1}, box:[128,104], label:null }
+  spk:      { name:"스피커", terms:[[-40,0,""],[40,0,""]], def:{sound:false}, box:[92,72],
+              label:function(){ return "스피커 8 Ω"; } },
+  ammeter:  { name:"전류계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:0.5, mode:"dc"}, box:[92,52], label:null },
+  voltmeter:{ name:"전압계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:15, mode:"dc"}, box:[92,52], label:null },
+  scope:    { name:"오실로스코프", terms:[[-40,44,"1+"],[40,44,"1−"],[-64,0,"2+"],[64,0,"2−"]], def:{tdiv:0.01, vdiv:1, src:false}, box:[128,104], label:null }
 };
 
 function rotPt(x, y, rot){ for(var k=0;k<(rot||0);k++){ var t = x; x = -y; y = t; } return [x, y]; }
 function termWorld(p, k){ var t = DEFS[p.type].terms[k], r = rotPt(t[0], t[1], p.rot); return [p.x + r[0], p.y + r[1]]; }
+function termLabel(p, k){
+  if(p.type === "cap") return (p.p.c >= 100 && k === 0) ? "+" : "";
+  return DEFS[p.type].terms[k][2] || "";
+}
 function wirePath(a, b, flip){
   return flip ? "M"+a[0]+" "+a[1]+" L"+a[0]+" "+b[1]+" L"+b[0]+" "+b[1]
               : "M"+a[0]+" "+a[1]+" L"+b[0]+" "+a[1]+" L"+b[0]+" "+b[1];
@@ -510,8 +564,10 @@ function partBody(p, st){
     }
     break;
   case "ac":
-    s += lead(-60,-46) + lead(46,60) + '<rect x="-46" y="-24" width="92" height="48" rx="6" fill="#44515A"/>'
-       + '<path d="M-24 0 C-18 -18 -6 -18 0 0 S18 18 24 0" fill="none" stroke="#F2C94C" stroke-width="2.4"/>';
+    s += lead(-60,-46) + lead(46,60) + '<rect x="-46" y="-24" width="92" height="48" rx="6" fill="#44515A"/>';
+    s += q.mode === "dc"
+      ? '<path d="M-22 -4 L22 -4 M-22 6 L-12 6 M-4 6 L6 6 M14 6 L22 6" stroke="#F2C94C" stroke-width="2.4"/>'
+      : '<path d="M-24 0 C-18 -18 -6 -18 0 0 S18 18 24 0" fill="none" stroke="#F2C94C" stroke-width="2.4"/>';
     break;
   case "sw":
     var ang = 25*Math.PI/180, ex = q.on ? 30 : -30 + 60*Math.cos(ang), ey = q.on ? 0 : -60*Math.sin(ang);
@@ -528,6 +584,13 @@ function partBody(p, st){
       for(k=0;k<4;k++) s += '<rect x="'+(off[k]-1.25)+'" y="-7" width="2.5" height="14" fill="'+b[k]+'"/>';
     }else s += '<path d="M-3 -11 q-6 -7 0 -13 q6 -6 0 -12" fill="none" stroke="#9E9E9E" stroke-width="2" stroke-linecap="round"/>';
     break;
+  case "pot":
+    var wx = -18 + 36*q.pos/100;
+    s += lead(-40,40) + '<rect x="-20" y="-8" width="40" height="16" rx="3" fill="#5C6F82" stroke="#3F4E5C"/>'
+       + '<line x1="0" y1="-40" x2="0" y2="-26" stroke="#8C8C8C" stroke-width="2"/>'
+       + '<polyline points="0,-26 '+wx.toFixed(1)+',-26 '+wx.toFixed(1)+',-14" fill="none" stroke="var(--ink)" stroke-width="2"/>'
+       + '<polygon points="'+(wx-4.5).toFixed(1)+',-16 '+(wx+4.5).toFixed(1)+',-16 '+wx.toFixed(1)+',-8" fill="var(--ink)"/>';
+    break;
   case "nichrome":
     var loops = Math.max(3, Math.round(4 + q.len/8)), N = loops*8, d = "M-60 0 L-52 0", pen = true;
     for(k=0;k<=N;k++){
@@ -541,7 +604,7 @@ function partBody(p, st){
     s += '<path d="'+d+'" fill="none" stroke="'+hot(T)+'" stroke-width="'+(0.8+q.dia*4).toFixed(1)+'" stroke-linejoin="round"/>';
     break;
   case "lamp":
-    var g = br ? 0 : clamp((T-800)/1600, 0, 1);
+    var g = br ? 0 : Math.max(0, Math.min(1, (T-800)/1600));
     s += lead(-40,-11) + lead(11,40);
     if(g > 0) s += '<circle cx="0" cy="-14" r="'+(18+10*g).toFixed(1)+'" fill="#FFD36B" opacity="'+(0.85*g).toFixed(2)+'" filter="url(#glow)"/>';
     s += '<circle cx="0" cy="-14" r="12" fill="'+(g > 0 ? mix("#FFFFFF","#FFF1B8",g) : "rgba(255,255,255,.35)")+'" stroke="#9AA6A6" stroke-width="1.2"/>';
@@ -550,7 +613,10 @@ function partBody(p, st){
     s += '<rect x="-11" y="-5" width="22" height="10" rx="2" fill="#A7A7A7"/>';
     break;
   case "cap":
-    s += lead(-40,-6) + lead(6,40) + '<rect x="-8" y="-16" width="4" height="32" fill="var(--ink)"/><rect x="4" y="-16" width="4" height="32" fill="var(--ink)"/>';
+    if(q.c >= 100){
+      s += lead(-40,-14) + lead(14,40) + '<rect x="-14" y="-12" width="28" height="24" rx="5" fill="#2F4F7F"/>'
+         + '<rect x="6" y="-12" width="6" height="24" fill="#C9D1CC"/>';
+    }else s += lead(-40,-6) + lead(6,40) + '<rect x="-8" y="-16" width="4" height="32" fill="var(--ink)"/><rect x="4" y="-16" width="4" height="32" fill="var(--ink)"/>';
     break;
   case "coil":
     var dc = "M-42 0"; for(k=0;k<6;k++) dc += " a7 9 0 0 1 14 0";
@@ -559,10 +625,17 @@ function partBody(p, st){
   case "diode":
     s += lead(-40,40) + '<polygon points="-9,-10 -9,10 9,0" fill="var(--ink)"/><line x1="10" y1="-10" x2="10" y2="10" stroke="var(--ink)" stroke-width="2.5"/>';
     break;
+  case "bridge":
+    s += '<path d="M0 -50 L0 -34 M0 50 L0 34 M-50 0 L-34 0 M50 0 L34 0" stroke="#8C8C8C" stroke-width="2"/>'
+       + '<rect x="-34" y="-34" width="68" height="68" rx="6" fill="#2F3A36"/>'
+       + '<path d="M0 -24 L24 0 L0 24 L-24 0 Z" fill="none" stroke="#C9D1CC" stroke-width="1.5"/>'
+       + '<path d="M-16 -8 l6 -6 M8 -14 l6 6 M-16 8 l6 6 M8 14 l6 -6" stroke="#F2C94C" stroke-width="2.5"/>';
+    break;
   case "led":
-    var L = LEDS[q.color] || LEDS.red, gl = br ? 0 : clamp((st.i || 0)/0.015, 0, 1);
+    var L = LEDS[q.color] || LEDS.red, cur = st.i || 0;
+    var gl = (br || cur <= 5e-5) ? 0 : Math.max(0, Math.min(1, Math.log(cur/5e-5)/Math.log(300)));
     s += lead(-40,-10) + lead(10,40);
-    if(gl > 0.02) s += '<circle cx="0" cy="-4" r="'+(14+10*gl).toFixed(1)+'" fill="'+L.col+'" opacity="'+(0.7*gl).toFixed(2)+'" filter="url(#glow)"/>';
+    if(gl > 0.02) s += '<circle cx="0" cy="-4" r="'+(14+10*gl).toFixed(1)+'" fill="'+L.col+'" opacity="'+(0.25+0.5*gl).toFixed(2)+'" filter="url(#glow)"/>';
     s += '<path d="M-10 6 L-10 -6 A10 10 0 0 1 10 -6 L10 6 Z" fill="'+(br ? "#3A3A3A" : mix("#9E9E9E", L.col, 0.35+0.65*gl))+'" stroke="#8C8C8C"/>';
     s += '<rect x="-12" y="6" width="24" height="4" rx="1" fill="#9E9E9E"/>';
     break;
@@ -574,15 +647,26 @@ function partBody(p, st){
        + '<polyline points="-4,7 20,22 20,40" fill="none" stroke="var(--ink)" stroke-width="2"/>'
        + '<polygon points="17,20 8.1,19.2 12.3,12.4" fill="var(--ink)"/>';
     break;
+  case "spk":
+    var amp = st.amp || 0;
+    s += lead(-40,-14) + lead(14,40) + '<rect x="-14" y="-8" width="28" height="18" rx="2" fill="#4A4A4A"/>'
+       + '<path d="M-10 -8 L-22 -26 L22 -26 L10 -8 Z" fill="#6D6D6D" stroke="#4A4A4A"/>';
+    if(amp > 0.002){
+      var op = Math.max(0.25, Math.min(1, amp*6)).toFixed(2);
+      s += '<path d="M-16 -32 Q0 -40 16 -32 M-22 -38 Q0 -48 22 -38" fill="none" stroke="var(--copper)" stroke-width="1.6" opacity="'+op+'"/>';
+    }
+    break;
   case "ammeter":
   case "voltmeter":
     s += lead(-40,-22) + lead(22,40) + '<circle cx="0" cy="0" r="22" fill="#F6F2E7" stroke="#6B6B6B" stroke-width="2"/>';
+    if(q.mode === "ac") s += '<text x="0" y="17" text-anchor="middle" font-size="9" fill="#6B6455">~</text>';
     break;
   case "scope":
     s += '<rect x="-60" y="-44" width="120" height="76" rx="6" fill="#2F3A36"/>'
        + '<rect x="-50" y="-36" width="100" height="52" rx="3" fill="#0E1A16"/>'
-       + '<path d="M-44 -10 C-34 -30 -24 -30 -14 -10 S6 10 16 -10 S36 -30 44 -10" fill="none" stroke="#7CE0A0" stroke-width="2"/>';
-    [-40,0,40].forEach(function(x){ s += '<line x1="'+x+'" y1="32" x2="'+x+'" y2="44" stroke="#8C8C8C" stroke-width="2"/>'; });
+       + '<path d="M-44 -10 C-34 -30 -24 -30 -14 -10 S6 10 16 -10 S36 -30 44 -10" fill="none" stroke="#7CE0A0" stroke-width="2"/>'
+       + '<line x1="-40" y1="32" x2="-40" y2="44" stroke="#F2C94C" stroke-width="2"/><line x1="40" y1="32" x2="40" y2="44" stroke="#F2C94C" stroke-width="2"/>'
+       + '<line x1="-64" y1="0" x2="-60" y2="0" stroke="#56CCF2" stroke-width="2"/><line x1="60" y1="0" x2="64" y2="0" stroke="#56CCF2" stroke-width="2"/>';
     break;
   }
   return s;
@@ -601,20 +685,21 @@ function partSVG(p, st, o){
   }
   var tags = o.tags || {}, lab = d.label ? d.label(p.p) : (tags[p.id] || d.name);
   if(p.type === "scope") lab = "오실로스코프 " + (tags[p.id] || "");
-  var half = rot % 2 ? d.box[0]/2 : d.box[1]/2;
-  if(rot % 2 === 0) s += '<text x="'+p.x+'" y="'+(p.y-half-7)+'" text-anchor="middle" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
-  else s += '<text x="'+(p.x+half+8)+'" y="'+(p.y+4)+'" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
+  var half = rot % 2 ? d.box[1]/2 : d.box[1]/2;
+  if(rot % 2 === 0) s += '<text x="'+p.x+'" y="'+(p.y-d.box[1]/2-7)+'" text-anchor="middle" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
+  else if(rot === 1) s += '<text x="'+(p.x+half+8)+'" y="'+(p.y+4)+'" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
+  else s += '<text x="'+(p.x-half-8)+'" y="'+(p.y+4)+'" text-anchor="end" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
 
   d.terms.forEach(function(t, k){
-    var w = termWorld(p, k), key = p.id + ":" + k, pend = o.pending === key;
+    var w = termWorld(p, k), key = p.id + ":" + k, pend = o.pending === key, tl = termLabel(p, k);
     s += '<g'+(o.interactive ? ' data-term="'+key+'" style="cursor:crosshair"' : '')+'>';
     if(o.interactive) s += '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="13" fill="transparent"/>';
     if(pend) s += '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="10" fill="none" stroke="var(--copper)" stroke-width="2"/>';
-    s += '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="5" fill="'+(t[2]==="+" ? RED : "#B8860B")+'" stroke="var(--card)" stroke-width="1.5"/></g>';
-    if(t[2]){
+    s += '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="5" fill="'+(tl.charAt(tl.length-1)==="+" ? RED : "#B8860B")+'" stroke="var(--card)" stroke-width="1.5"/></g>';
+    if(tl){
       var dx = w[0]-p.x, dy = w[1]-p.y;
-      if(Math.abs(dx) >= Math.abs(dy)) s += '<text x="'+w[0]+'" y="'+(w[1]-10)+'" text-anchor="middle" font-size="10.5" fill="var(--ink-soft)" pointer-events="none">'+t[2]+'</text>';
-      else s += '<text x="'+(w[0]+10)+'" y="'+(w[1]+(dy>0?-4:12))+'" font-size="10.5" fill="var(--ink-soft)" pointer-events="none">'+t[2]+'</text>';
+      if(Math.abs(dx) >= Math.abs(dy)) s += '<text x="'+w[0]+'" y="'+(w[1]-10)+'" text-anchor="middle" font-size="10.5" fill="var(--ink-soft)" pointer-events="none">'+tl+'</text>';
+      else s += '<text x="'+(w[0]+10)+'" y="'+(w[1]+(dy>0?-4:12))+'" font-size="10.5" fill="var(--ink-soft)" pointer-events="none">'+tl+'</text>';
     }
   });
   return s;
@@ -631,12 +716,37 @@ function circuitSVG(c, stOf, o){
   c.parts.forEach(function(p){ by[p.id] = p; });
   c.wires.forEach(function(w){
     var pa = by[w.a.pid], pb = by[w.b.pid];
-    if(pa && pb) s += wireSVG(w, termWorld(pa, w.a.t), termWorld(pb, w.b.t), { interactive:o.interactive, sel:o.selWire === w.id });
+    if(pa && pb && DEFS[pa.type].terms[w.a.t] && DEFS[pb.type].terms[w.b.t])
+      s += wireSVG(w, termWorld(pa, w.a.t), termWorld(pb, w.b.t), { interactive:o.interactive, sel:o.selWire === w.id });
   });
   c.parts.forEach(function(p){
     s += partSVG(p, stOf ? stOf(p) : {}, { interactive:o.interactive, sel:o.sel === p.id, pending:o.pending, tags:tags });
   });
   return s;
+}
+// 담은 파형 그리기 (오실로스코프 화면과 같은 모양)
+function waveSVG(wv){
+  var s = '<svg class="scope" viewBox="0 0 500 320" role="img" aria-label="'+esc(wv.label||"파형")+'"><rect width="500" height="320" fill="#0E1A16"/>', k;
+  for(k=1;k<10;k++) s += '<line x1="'+k*50+'" y1="0" x2="'+k*50+'" y2="320" stroke="#7CE0A0" stroke-opacity="'+(k===5?0.35:0.14)+'"/>';
+  for(k=1;k<8;k++) s += '<line x1="0" y1="'+k*40+'" x2="500" y2="'+k*40+'" stroke="#7CE0A0" stroke-opacity="'+(k===4?0.35:0.14)+'"/>';
+  var cols = ["#F2C94C","#56CCF2","#FF8A65"], names = ["CH1","CH2","전원 장치"];
+  (wv.ch || []).forEach(function(arr, c){
+    if(!arr) return;
+    var pts = [];
+    arr.forEach(function(v, j){
+      if(v === null || v === undefined) return;
+      pts.push((j/(arr.length-1)*500).toFixed(1) + "," + Math.max(-4, Math.min(324, 160 - v/wv.vdiv*40)).toFixed(1));
+    });
+    if(pts.length > 1) s += '<polyline points="'+pts.join(" ")+'" fill="none" stroke="'+cols[c]+'" stroke-width="2"'+(c===2?' stroke-dasharray="5 3"':'')+'/>';
+  });
+  var lx = 10;
+  (wv.ch || []).forEach(function(arr, c){
+    if(!arr || !arr.some(function(v){ return v !== null; })) return;
+    s += '<text x="'+lx+'" y="18" font-size="12" fill="'+cols[c]+'" font-family="IBM Plex Mono, monospace">'+names[c]+'</text>'; lx += c === 1 ? 44 : 40;
+  });
+  var td = wv.tdiv < 1 ? trim3(wv.tdiv*1000) + " ms" : wv.tdiv + " s";
+  s += '<text x="490" y="310" text-anchor="end" font-size="11" fill="#7CE0A0" font-family="IBM Plex Mono, monospace">'+td+'/칸, '+wv.vdiv+' V/칸</text>';
+  return s + '</svg>';
 }
 /* ==== 부품 그림 끝 ==== */
 
