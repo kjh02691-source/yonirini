@@ -157,6 +157,17 @@ input[type=range]{width:100%;accent-color:var(--copper)}
 .pin-row{display:flex;gap:8px;margin-top:12px}
 .pin-row input{flex:1;min-width:0;padding:8px 10px;background:var(--paper);border:1px solid var(--rule);border-radius:6px}
 
+.modal{position:absolute;inset:0;background:rgba(0,0,0,.38);display:grid;place-items:center;padding:16px;z-index:3}
+.mbox{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:16px 18px;width:100%;max-width:680px;max-height:100%;overflow:auto}
+.mhead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.mbox h3{font-size:.82rem;color:var(--ink-soft);font-weight:500;margin:14px 0 6px}
+.plist{display:flex;flex-wrap:wrap;gap:6px}
+.num-in{width:100%;margin-top:6px;padding:6px 8px;background:var(--paper);border:1px solid var(--rule);border-radius:6px;font-family:"IBM Plex Mono",monospace}
+.kind-row{margin-bottom:14px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.row3 label{font-size:.76rem;color:var(--ink-soft)}
+.wave-card input{width:100%;padding:6px 8px;margin-bottom:8px;background:var(--paper);border:1px solid var(--rule);border-radius:6px;font-size:.86rem}
+.kind-row .lab{display:block;font-size:.78rem;color:var(--ink-soft);margin-bottom:6px}
 .inst{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;margin:16px 0 34px}
 .inst h3{font-size:.92rem;font-weight:500;margin:0 0 8px}
 .inst .seg{justify-content:center;margin-top:8px}
@@ -263,6 +274,7 @@ textarea{
             <g id="board-g"></g>
           </svg>
           <div class="board-hint" id="hint"></div>
+          <div class="modal" id="presets" hidden><div class="mbox" id="presets-box"></div></div>
           <div class="chooser" id="chooser" hidden>
             <div>
               <h2>어떻게 시작할까요?</h2>
@@ -284,19 +296,36 @@ textarea{
     </div>
 
     <div class="inst" id="inst"></div>
+    <div id="waves-wrap" hidden>
+      <h2>담은 파형 <span class="muted" id="waves-count"></span></h2>
+      <p class="muted">오실로스코프의 "파형 담기"를 누르면 지금 화면이 여기에 모이고, 제출할 때 함께 보내집니다. 이름을 바꿔 어떤 회로의 파형인지 적어 두세요.</p>
+      <div class="inst" id="waves"></div>
+    </div>
   </div>
 
   <!-- ---- 표 + 그래프 (두 탭 공통) ---- -->
   <div class="cols">
     <div>
+      <div class="kind-row" id="kind-row" hidden>
+        <span class="lab">기록할 표</span>
+        <div class="seg" id="kind-seg"></div>
+      </div>
+      <div class="ctl" id="tr-params" hidden>
+        <span class="lab">계산에 쓰는 값 (회로에 맞게 바꿀 수 있어요)</span>
+        <div class="row3">
+          <label>베이스 저항 (kΩ)<input class="num-in" data-trp="rb" inputmode="decimal"></label>
+          <label>부하 저항 (kΩ)<input class="num-in" data-trp="rc" inputmode="decimal"></label>
+          <label>작동 전압 (V)<input class="num-in" data-trp="vbe" inputmode="decimal"></label>
+        </div>
+      </div>
       <h2>측정값</h2>
       <p class="muted" id="tbl-desc">회로에 걸린 전압과 그때 흐른 전류를 한 줄씩 적습니다.</p>
       <table>
         <thead>
           <tr>
-            <th style="width:38%">전압 (V)</th>
+            <th style="width:38%" id="th-v">전압 (V)</th>
             <th style="width:38%" id="th-i">전류 (mA)</th>
-            <th style="width:24%;text-align:right">V / I</th>
+            <th style="width:24%;text-align:right" id="th-c">V / I</th>
             <th></th>
           </tr>
         </thead>
@@ -306,7 +335,7 @@ textarea{
         <button class="btn ghost slim" id="add-row">줄 추가</button>
         <button class="btn ghost slim" id="clear">모두 지우기</button>
       </div>
-      <div class="opts">
+      <div class="opts" id="opts">
         <label class="opt"><input type="checkbox" id="unit-a"> 전류를 A(암페어) 단위로 입력</label>
         <label class="opt"><input type="checkbox" id="swap"> 가로축을 전류로 바꾸기</label>
         <label class="opt"><input type="checkbox" id="origin" checked> 직선이 원점을 지나게 하기</label>
@@ -403,17 +432,43 @@ function saveAll(obj){ try{ localStorage.setItem(KEY, JSON.stringify(obj)); retu
    1. 상태
    ========================================================= */
 var state = {
-  student:null, mode:"real", rows:[], vrows:[],
+  student:null, mode:"real",
+  rows:[],      // 실측값 (전압-전류)
+  vrows:[],     // 가상 실험: 전압-전류
+  frows:[],     // 가상 실험: 진동수-전류 진폭 (RLC 공진)
+  lrows:[],     // 가상 실험: 파장-문턱 전압 (플랑크 상수)
+  trows:[],     // 가상 실험: 최대 입력-출력 전압 (트랜지스터 증폭)
+  trp:{ rb:22, rc:0.33, vbe:0.6 },   // 트랜지스터 계산용 베이스 저항·부하 저항(kΩ), 작동 전압(V)
+  waves:[],     // 담은 파형
+  vkind:"vi",
   unitA:false, swap:false, origin:true
 };
 var vs = {
-  factors: copyFactors(HIDDEN_FACTORS), revealed:false, chosen:false
+  factors: copyFactors(HIDDEN_FACTORS), revealed:false, chosen:false, presetOk:false
 };
 function copyFactors(f){ return { heat:!!f.heat, battery:!!f.battery, meter:!!f.meter, wire:!!f.wire }; }
 function blankRows(n){ var a=[]; for(var k=0;k<n;k++) a.push({v:"", i:""}); return a; }
 function studentKey(s){ return s.cls + "-" + s.no + "-" + s.name; }
-function activeRows(){ return state.mode === "virtual" ? state.vrows : state.rows; }
-function setActiveRows(a){ if(state.mode === "virtual") state.vrows = a; else state.rows = a; }
+function curKind(){ return state.mode === "virtual" ? state.vkind : "vi"; }
+function activeRows(){
+  if(state.mode !== "virtual") return state.rows;
+  return state.vkind === "fi" ? state.frows : state.vkind === "lv" ? state.lrows : state.vkind === "tr" ? state.trows : state.vrows;
+}
+function setActiveRows(a){
+  if(state.mode !== "virtual") state.rows = a;
+  else if(state.vkind === "fi") state.frows = a;
+  else if(state.vkind === "lv") state.lrows = a;
+  else if(state.vkind === "tr") state.trows = a;
+  else state.vrows = a;
+}
+var KINDS = {
+  vi: { name:"전압–전류 (옴의 법칙)", c3:"V / I" },
+  fi: { name:"진동수–전류 진폭 (RLC 공진)", c1:"진동수 (Hz)", c2:"전류 진폭 (mA)", c3:"" },
+  lv: { name:"파장–문턱 전압 (플랑크 상수)", c1:"파장 (nm)", c2:"문턱 전압 (V)", c3:"진동수 (10¹⁴ Hz)" },
+  tr: { name:"입력–출력 최대 전압 (트랜지스터 증폭)", c1:"최대 입력 전압 (V)", c2:"최대 출력 전압 (V)", c3:"증폭률" }
+};
+var E_CHARGE = 1.602e-19, H_PLANCK = 6.626e-34;
+function lamToF(nm){ return 2997.92458/nm; }   // 10¹⁴ Hz 단위
 
 /* =========================================================
    2. 계산 — 최소제곱법과 저항
@@ -424,6 +479,11 @@ function points(rows){
     var v = parseFloat(rows[k].v), i = parseFloat(rows[k].i);
     if(isFinite(v) && isFinite(i)) out.push({ v:v, i: state.unitA ? i : i/1000 });
   }
+  return out;
+}
+function pairs(rows){
+  var out = [];
+  (rows||[]).forEach(function(r){ var a = parseFloat(r.v), b = parseFloat(r.i); if(isFinite(a) && isFinite(b)) out.push([a,b]); });
   return out;
 }
 function fit(xs, ys, throughOrigin){
@@ -463,6 +523,29 @@ function analyse(rows){
            xLabel: state.swap ? "전류 ("+iUnit+")" : "전압 (V)",
            yLabel: state.swap ? "전압 (V)" : "전류 ("+iUnit+")" };
 }
+// 공진: 전류가 가장 클 때의 진동수
+function analyseFI(rows){
+  var p = pairs(rows).sort(function(a,b){ return a[0]-b[0]; }), best = null;
+  p.forEach(function(q){ if(!best || q[1] > best[1]) best = q; });
+  return { p:p, n:p.length, best:best };
+}
+// 플랑크: 문턱 전압 = (h/e)·f + b 의 기울기
+function analyseLV(rows){
+  var p = pairs(rows).map(function(q){ return [lamToF(q[0]), q[1]]; });
+  var f = fit(p.map(function(q){ return q[0]; }), p.map(function(q){ return q[1]; }), false);
+  var h = f ? E_CHARGE*f.a/1e14 : null;
+  return { p:p, n:p.length, fit:f, h:h };
+}
+// 트랜지스터: 베이스 전류 = (입력 − 작동 전압) ÷ 베이스 저항, 컬렉터 전류 = 출력 ÷ 부하 저항
+function trRow(vin, vout){
+  var t = state.trp, ib = (vin - t.vbe)/t.rb, ic = vout/t.rc;   // kΩ이므로 mA
+  return { ib:ib, ic:ic, beta: ib > 0 ? ic/ib : null };
+}
+function analyseTR(rows){
+  var p = pairs(rows).map(function(q){ return trRow(q[0], q[1]); }).filter(function(r){ return r.ib > 0; });
+  var f = fit(p.map(function(r){ return r.ib; }), p.map(function(r){ return r.ic; }), true);
+  return { p:p, n:p.length, fit:f };
+}
 function fmt(x, digits){
   if(x === null || x === undefined || !isFinite(x)) return "—";
   var ax = Math.abs(x);
@@ -481,39 +564,96 @@ function niceStep(range, n){
   var raw = range/n, mag = Math.pow(10, Math.floor(Math.log(raw)/Math.LN10)), norm = raw/mag;
   return (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10)*mag;
 }
-function drawPlot(){
-  var d = analyse(), xMax = 1, yMax = 1, k;
-  for(k=0;k<d.xs.length;k++) if(d.xs[k] > xMax) xMax = d.xs[k];
-  for(k=0;k<d.ys.length;k++) if(d.ys[k] > yMax) yMax = d.ys[k];
-  xMax *= 1.12; yMax *= 1.12;
-  var xStep = niceStep(xMax,5), yStep = niceStep(yMax,5);
+// 점, 맞춘 직선(line), 점 잇기(connect)를 그리는 공통 함수
+function plotXY(o){
+  var xs = o.xs, ys = o.ys, k;
+  var xMin = o.fromZero ? 0 : Math.min.apply(null, xs.concat([Infinity]));
+  var yMin = o.fromZero ? 0 : Math.min.apply(null, ys.concat([Infinity]));
+  var xMax = Math.max.apply(null, xs.concat([o.fromZero ? 1 : -Infinity]));
+  var yMax = Math.max.apply(null, ys.concat([o.fromZero ? 1 : -Infinity]));
+  if(!isFinite(xMin)){ xMin = 0; xMax = 1; yMin = 0; yMax = 1; }
+  if(!o.fromZero){
+    var dx = (xMax - xMin) || Math.abs(xMax) || 1, dy = (yMax - yMin) || Math.abs(yMax) || 1;
+    xMin -= dx*0.12; xMax += dx*0.12; yMin -= dy*0.15; yMax += dy*0.15;
+    if(o.yFloor0 && yMin < 0) yMin = 0;
+  }else{ xMax *= 1.12; yMax *= 1.12; }
+  var xStep = niceStep(xMax - xMin, 5), yStep = niceStep(yMax - yMin, 5);
+  xMin = Math.floor(xMin/xStep)*xStep; yMin = Math.floor(yMin/yStep)*yStep;
   xMax = Math.ceil(xMax/xStep)*xStep; yMax = Math.ceil(yMax/yStep)*yStep;
-  var px = function(x){ return PAD.l + (x/xMax)*(W-PAD.l-PAD.r); };
-  var py = function(y){ return H-PAD.b - (y/yMax)*(H-PAD.t-PAD.b); };
+  var px = function(x){ return PAD.l + (x-xMin)/(xMax-xMin)*(W-PAD.l-PAD.r); };
+  var py = function(y){ return H-PAD.b - (y-yMin)/(yMax-yMin)*(H-PAD.t-PAD.b); };
   var s = "";
-  for(var gx=0; gx<=xMax+1e-9; gx+=xStep){
+  for(var gx=xMin; gx<=xMax+1e-9; gx+=xStep){
     s += '<line x1="'+px(gx)+'" y1="'+PAD.t+'" x2="'+px(gx)+'" y2="'+(H-PAD.b)+'" stroke="var(--grid)"/>';
     s += '<text x="'+px(gx)+'" y="'+(H-PAD.b+20)+'" text-anchor="middle" font-size="11" fill="var(--ink-soft)" font-family="IBM Plex Mono, monospace">'+fmt(gx,2)+'</text>';
   }
-  for(var gy=0; gy<=yMax+1e-9; gy+=yStep){
+  for(var gy=yMin; gy<=yMax+1e-9; gy+=yStep){
     s += '<line x1="'+PAD.l+'" y1="'+py(gy)+'" x2="'+(W-PAD.r)+'" y2="'+py(gy)+'" stroke="var(--grid)"/>';
     s += '<text x="'+(PAD.l-9)+'" y="'+(py(gy)+4)+'" text-anchor="end" font-size="11" fill="var(--ink-soft)" font-family="IBM Plex Mono, monospace">'+fmt(gy,2)+'</text>';
   }
   s += '<line x1="'+PAD.l+'" y1="'+PAD.t+'" x2="'+PAD.l+'" y2="'+(H-PAD.b)+'" stroke="var(--rule)" stroke-width="1.5"/>';
   s += '<line x1="'+PAD.l+'" y1="'+(H-PAD.b)+'" x2="'+(W-PAD.r)+'" y2="'+(H-PAD.b)+'" stroke="var(--rule)" stroke-width="1.5"/>';
-  s += '<text x="'+((PAD.l+W-PAD.r)/2)+'" y="'+(H-10)+'" text-anchor="middle" font-size="12.5" fill="var(--ink)">'+d.xLabel+'</text>';
-  s += '<text transform="translate(16,'+((PAD.t+H-PAD.b)/2)+') rotate(-90)" text-anchor="middle" font-size="12.5" fill="var(--ink)">'+d.yLabel+'</text>';
-  if(d.fit){
-    var x1=0, x2=xMax, y1=d.fit.a*x1+d.fit.b, y2=d.fit.a*x2+d.fit.b;
-    if(y2 > yMax){ x2 = (yMax-d.fit.b)/d.fit.a; y2 = yMax; }
-    if(y1 < 0){ x1 = -d.fit.b/d.fit.a; y1 = 0; }
+  s += '<text x="'+((PAD.l+W-PAD.r)/2)+'" y="'+(H-10)+'" text-anchor="middle" font-size="12.5" fill="var(--ink)">'+o.xLabel+'</text>';
+  s += '<text transform="translate(16,'+((PAD.t+H-PAD.b)/2)+') rotate(-90)" text-anchor="middle" font-size="12.5" fill="var(--ink)">'+o.yLabel+'</text>';
+  if(o.line){
+    var x1 = xMin, x2 = xMax, a = o.line.a, b = o.line.b;
+    var y1 = a*x1+b, y2 = a*x2+b;
+    if(a !== 0){
+      if(y2 > yMax){ x2 = (yMax-b)/a; y2 = yMax; } if(y2 < yMin){ x2 = (yMin-b)/a; y2 = yMin; }
+      if(y1 < yMin){ x1 = (yMin-b)/a; y1 = yMin; } if(y1 > yMax){ x1 = (yMax-b)/a; y1 = yMax; }
+    }
     if(isFinite(x1)&&isFinite(x2)&&isFinite(y1)&&isFinite(y2))
       s += '<line x1="'+px(x1)+'" y1="'+py(y1)+'" x2="'+px(x2)+'" y2="'+py(y2)+'" stroke="var(--blue)" stroke-width="2" stroke-dasharray="6 4"/>';
   }
-  for(k=0;k<d.xs.length;k++)
-    s += '<circle cx="'+px(d.xs[k])+'" cy="'+py(d.ys[k])+'" r="5" fill="var(--copper)" stroke="var(--card)" stroke-width="2"/>';
-  if(d.n === 0) s += '<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" font-size="13" fill="var(--ink-soft)">측정값을 넣으면 여기에 점이 찍힙니다</text>';
+  if(o.connect && xs.length > 1){
+    s += '<polyline points="'+xs.map(function(x,k2){ return px(x)+","+py(ys[k2]); }).join(" ")+'" fill="none" stroke="var(--blue)" stroke-width="1.6"/>';
+  }
+  for(k=0;k<xs.length;k++){
+    var hi = o.mark === k;
+    s += '<circle cx="'+px(xs[k])+'" cy="'+py(ys[k])+'" r="'+(hi?7:5)+'" fill="'+(hi?"var(--blue)":"var(--copper)")+'" stroke="var(--card)" stroke-width="2"/>';
+  }
+  if(!xs.length) s += '<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" font-size="13" fill="var(--ink-soft)">측정값을 넣으면 여기에 점이 찍힙니다</text>';
   $("plot").innerHTML = s;
+}
+function drawPlot(){
+  var kind = curKind(), v = $("verdict");
+  if(kind === "fi"){
+    var a = analyseFI(activeRows());
+    plotXY({ xs:a.p.map(function(q){ return q[0]; }), ys:a.p.map(function(q){ return q[1]; }), xLabel:"진동수 (Hz)", yLabel:"전류 진폭 (mA)",
+             connect:true, yFloor0:true, mark: a.best ? a.p.indexOf(a.best) : -1 });
+    $("readout").innerHTML = cell("측정한 횟수", a.n + "회")
+      + cell("전류가 가장 클 때 진동수", a.best ? fmt(a.best[0],1) + " Hz" : "—")
+      + cell("그때 전류 진폭", a.best ? fmt(a.best[1],2) + " mA" : "—");
+    v.hidden = a.n < 3;
+    v.textContent = "전류 진폭이 가장 큰 진동수가 공진 진동수의 실험값입니다. 이론값 f = 1 ÷ (2π√(LC))와 비교해 보세요. 가장 큰 곳 근처에서 진동수 간격을 좁혀 다시 재면 더 정확해집니다.";
+    return;
+  }
+  if(kind === "lv"){
+    var b = analyseLV(activeRows());
+    plotXY({ xs:b.p.map(function(q){ return q[0]; }), ys:b.p.map(function(q){ return q[1]; }), xLabel:"진동수 (10¹⁴ Hz)", yLabel:"문턱 전압 (V)",
+             line: b.fit ? { a:b.fit.a, b:b.fit.b } : null });
+    $("readout").innerHTML = cell("측정한 LED 수", b.n + "개")
+      + cell("기울기", b.fit ? fmt(b.fit.a,4) + " V/10¹⁴Hz" : "—")
+      + cell("플랑크 상수 측정값", b.h ? fmt(b.h/1e-34,3) + " ×10⁻³⁴ J·s" : "—")
+      + cell("이론값과 차이", b.h ? fmt((b.h-H_PLANCK)/H_PLANCK*100,1) + " %" : "—");
+    v.hidden = !b.fit;
+    v.textContent = "eV = hf 이므로 문턱 전압–진동수 그래프의 기울기에 전자의 전하량(1.602×10⁻¹⁹ C)을 곱하면 플랑크 상수가 됩니다. 알려진 값은 6.63×10⁻³⁴ J·s예요.";
+    return;
+  }
+  if(kind === "tr"){
+    var c = analyseTR(activeRows()), last = c.p[c.p.length-1];
+    plotXY({ xs:c.p.map(function(r){ return r.ib; }), ys:c.p.map(function(r){ return r.ic; }), xLabel:"베이스 전류 (mA)", yLabel:"컬렉터 전류 (mA)",
+             fromZero:true, line: c.fit ? { a:c.fit.a, b:0 } : null });
+    $("readout").innerHTML = cell("측정 횟수", c.n + "회")
+      + cell("베이스 전류", last ? fmt(last.ib,4) + " mA" : "—")
+      + cell("컬렉터 전류", last ? fmt(last.ic,3) + " mA" : "—")
+      + cell("전류 증폭률", c.n === 1 ? fmt(last.beta,1) : c.fit ? fmt(c.fit.a,1) + " (기울기)" : "—");
+    v.hidden = !c.n;
+    v.textContent = "전류 증폭률 = 컬렉터 전류 ÷ 베이스 전류. 입력 전압의 진폭을 바꿔 여러 번 재면, 베이스 전류–컬렉터 전류 그래프의 기울기로 증폭률을 구할 수 있습니다.";
+    return;
+  }
+  var d = analyse();
+  plotXY({ xs:d.xs, ys:d.ys, xLabel:d.xLabel, yLabel:d.yLabel, fromZero:true, line:d.fit ? { a:d.fit.a, b:d.fit.b } : null });
   drawReadout(d);
 }
 function drawReadout(d){
@@ -539,7 +679,32 @@ function cell(k, v){ return '<div class="cell"><div class="k">'+k+'</div><div cl
 /* =========================================================
    4. 표
    ========================================================= */
+function updateHeaders(){
+  var kind = curKind(), K = KINDS[kind];
+  $("th-v").textContent = kind === "vi" ? "전압 (V)" : K.c1;
+  $("th-i").textContent = kind === "vi" ? "전류 (" + (state.unitA ? "A" : "mA") + ")" : K.c2;
+  $("th-c").textContent = K.c3;
+  $("opts").hidden = kind !== "vi";
+  $("tr-params").hidden = kind !== "tr";
+  if(kind === "tr") document.querySelectorAll("[data-trp]").forEach(function(inp){ if(document.activeElement !== inp) inp.value = state.trp[inp.getAttribute("data-trp")]; });
+  $("kind-row").hidden = state.mode !== "virtual";
+  if(state.mode === "virtual"){
+    $("kind-seg").innerHTML = Object.keys(KINDS).map(function(k){
+      return '<button type="button" data-kind="'+k+'" aria-pressed="'+(state.vkind===k)+'">'+KINDS[k].name+'</button>';
+    }).join("");
+  }
+  var desc = {
+    vi: state.mode === "virtual"
+      ? "회로를 꾸민 뒤 계기의 바늘을 읽어 한 줄씩 적습니다. 전류계 단자가 50·500 mA면 mA 눈금, 5 A면 A 눈금이에요."
+      : "회로에 걸린 전압과 그때 흐른 전류를 한 줄씩 적습니다.",
+    fi: "전원 장치의 진동수를 바꿔 가며, 교류(진폭) 모드 전류계로 잰 전류 진폭을 mA 단위로 적습니다.",
+    lv: "LED 색을 바꿔 가며 빛이 나기 시작하는 문턱 전압을 적습니다. LED의 파장은 부품 설정에 나와 있습니다.",
+    tr: "오실로스코프에서 입력 전압(전원 장치)과 출력 전압(부하 저항)의 최댓값을 읽어 적습니다. 실험 1에서 찾은 작동 전압을 위에 넣으세요."
+  };
+  $("tbl-desc").textContent = desc[kind];
+}
 function drawRows(){
+  updateHeaders();
   var tb = $("rows"), rows = activeRows();
   tb.innerHTML = "";
   rows.forEach(function(r, idx){
@@ -551,7 +716,7 @@ function drawRows(){
       inp.addEventListener("input", function(){ activeRows()[idx][key] = inp.value; refreshCalc(); });
       td.appendChild(inp); return td;
     }
-    tr.appendChild(input("v","전압")); tr.appendChild(input("i","전류"));
+    tr.appendChild(input("v", $("th-v").textContent)); tr.appendChild(input("i", $("th-i").textContent));
     var tdR = document.createElement("td"); tdR.className = "calc"; tr.appendChild(tdR);
     var tdD = document.createElement("td"); tdD.className = "del";
     var bd = document.createElement("button");
@@ -567,23 +732,41 @@ function drawRows(){
   refreshCalc();
 }
 function refreshCalc(){
-  var tb = $("rows"), rows = activeRows();
+  var tb = $("rows"), rows = activeRows(), kind = curKind();
   for(var k=0;k<rows.length;k++){
-    var v = parseFloat(rows[k].v), i = parseFloat(rows[k].i), amps = state.unitA ? i : i/1000;
+    var a = parseFloat(rows[k].v), b = parseFloat(rows[k].i);
     var c = tb.rows[k] && tb.rows[k].cells[2];
-    if(c) c.textContent = (isFinite(v)&&isFinite(amps)&&amps!==0) ? fmt(v/amps,1)+" Ω" : "";
+    if(!c) continue;
+    if(kind === "vi"){
+      var amps = state.unitA ? b : b/1000;
+      c.textContent = (isFinite(a)&&isFinite(amps)&&amps!==0) ? fmt(a/amps,1)+" Ω" : "";
+    }else if(kind === "lv") c.textContent = (isFinite(a) && a > 0) ? fmt(lamToF(a),3) : "";
+    else if(kind === "tr"){ var tr = (isFinite(a) && isFinite(b)) ? trRow(a, b) : null; c.textContent = tr && tr.beta ? fmt(tr.beta,1) : ""; }
+    else c.textContent = "";
   }
   drawPlot();
 }
+document.querySelectorAll("[data-trp]").forEach(function(inp){
+  inp.addEventListener("change", function(){
+    var v = parseFloat(inp.value), k = inp.getAttribute("data-trp");
+    if(!isFinite(v) || (k !== "vbe" && v <= 0)){ toast("숫자를 알맞게 넣어 주세요"); inp.value = state.trp[k]; return; }
+    state.trp[k] = v; refreshCalc();
+  });
+});
+$("kind-seg").addEventListener("click", function(e){
+  var b = e.target.closest("[data-kind]"); if(!b) return;
+  state.vkind = b.getAttribute("data-kind"); drawRows();
+});
 
 /* ==== 부품 그림 시작 ====
    (teacher.html에도 똑같이 들어 있습니다. 부품 모양을 고치면 두 파일 모두 고쳐 주세요.) */
 var RED = "#C8452E";
 var BAND = ["#1A1A1A","#7A4A1E","#C62828","#E65100","#F9A825","#2E7D32","#1565C0","#6A1B9A","#757575","#F5F5F5"];
 var LEDS = {
-  red:  { name:"빨강", col:"#E53935", Is:8.4e-18 },
-  green:{ name:"초록", col:"#43A047", Is:2.6e-20 },
-  blue: { name:"파랑", col:"#1E88E5", Is:4.8e-27 }
+  red:   { name:"빨강", col:"#E53935", nm:635 },
+  yellow:{ name:"노랑", col:"#FDD835", nm:592 },
+  green: { name:"초록", col:"#43A047", nm:561 },
+  blue:  { name:"파랑", col:"#1E88E5", nm:468 }
 };
 function mix(a, b, t){
   t = Math.max(0, Math.min(1, t));
@@ -599,43 +782,61 @@ function hot(T){
   if(T < 1100) return mix("#C62828","#FF8F00",(T-700)/400);
   return mix("#FF8F00","#FFE082",(T-1100)/1200);
 }
+// 저항값 → 색 띠 (두 자리 + 곱하는 수 + 오차)
 function bands(R){
-  var e = 0;
-  while(R >= 100){ R /= 10; e++; }
-  return [BAND[Math.floor(R/10)], BAND[Math.round(R%10)], BAND[e], "#C9A227"];
+  if(!(R > 0)) R = 1;
+  var e = Math.floor(Math.log(R)/Math.LN10 + 1e-9) - 1, d = Math.round(R/Math.pow(10, e));
+  if(d >= 100){ d = Math.round(d/10); e++; }
+  var mult = e >= 0 ? BAND[Math.min(e, 9)] : (e === -1 ? "#C9A227" : "#B0B0B0");
+  return [BAND[Math.floor(d/10) % 10], BAND[d % 10], mult, "#C9A227"];
 }
-function ohm(r){ return r >= 1000 ? (r/1000) + " kΩ" : r + " Ω"; }
+function trim3(x){ return String(Math.round(x*1000)/1000); }
+function ohm(r){
+  if(r >= 1e6) return trim3(r/1e6) + " MΩ";
+  if(r >= 1000) return trim3(r/1000) + " kΩ";
+  return trim3(r) + " Ω";
+}
 
 var DEFS = {
+  ac:       { name:"전원 장치", terms:[[-60,0,"−"],[60,0,"+"]], def:{mode:"dc", v:1, f:100}, box:[128,56],
+              label:function(p){ return p.mode === "dc" ? "전원 장치 직류 " + trim3(p.v) + " V" : "전원 장치 사인파 " + trim3(p.v) + " V, " + trim3(p.f) + " Hz"; } },
   battery:  { name:"건전지", terms:[[-60,0,"−"],[60,0,"+"]], def:{cells:2}, box:[128,40],
               label:function(p){ return "건전지 " + p.cells + "개"; } },
-  ac:       { name:"교류 전원", terms:[[-60,0,""],[60,0,""]], def:{vp:3, f:1}, box:[128,56],
-              label:function(p){ return "교류 " + p.vp + " V, " + p.f + " Hz"; } },
   sw:       { name:"스위치", terms:[[-40,0,""],[40,0,""]], def:{on:false}, box:[92,64],
               label:function(p){ return p.on ? "스위치 켜짐" : "스위치 꺼짐"; } },
   resistor: { name:"저항기", terms:[[-40,0,""],[40,0,""]], def:{r:47}, box:[92,30],
               label:function(p){ return "저항기 " + ohm(p.r); } },
+  pot:      { name:"가변저항", terms:[[-40,0,"A"],[40,0,"B"],[0,-40,"W"]], def:{r:100, pos:50}, box:[92,84],
+              label:function(p){ return "가변저항 " + ohm(p.r) + " (" + p.pos + "%)"; } },
   nichrome: { name:"니크롬선", terms:[[-60,0,""],[60,0,""]], def:{len:50, dia:0.3}, box:[132,30],
               label:function(p){ return "니크롬선 " + p.len + " cm, " + p.dia + " mm"; } },
   lamp:     { name:"꼬마전구", terms:[[-40,0,""],[40,0,""]], def:{}, box:[92,52],
               label:function(){ return "꼬마전구 2.5 V"; } },
-  cap:      { name:"축전기", terms:[[-40,0,""],[40,0,""]], def:{c:1000}, box:[92,44],
-              label:function(p){ return "축전기 " + p.c + " µF"; } },
-  coil:     { name:"코일", terms:[[-60,0,""],[60,0,""]], def:{l:1}, box:[132,34],
-              label:function(p){ return "코일 " + p.l + " H"; } },
+  cap:      { name:"축전기", terms:[[-40,0,""],[40,0,""]], def:{c:1}, box:[92,44],
+              label:function(p){ return "축전기 " + trim3(p.c) + " µF"; } },
+  coil:     { name:"코일", terms:[[-60,0,""],[60,0,""]], def:{l:0.01}, box:[132,34],
+              label:function(p){ return "코일 " + trim3(p.l*1000) + " mH"; } },
   diode:    { name:"다이오드", terms:[[-40,0,"+"],[40,0,"−"]], def:{}, box:[92,34],
               label:function(){ return "다이오드"; } },
+  bridge:   { name:"브리지 정류기", terms:[[-50,0,"~"],[50,0,"~"],[0,-50,"+"],[0,50,"−"]], def:{}, box:[104,104],
+              label:function(){ return "브리지 정류기"; } },
   led:      { name:"LED", terms:[[-40,0,"+"],[40,0,"−"]], def:{color:"red"}, box:[92,44],
-              label:function(p){ return "LED " + LEDS[p.color].name; } },
-  npn:      { name:"트랜지스터", terms:[[-40,0,"B"],[20,-40,"C"],[20,40,"E"]], def:{beta:100}, box:[96,92],
+              label:function(p){ var L = LEDS[p.color] || LEDS.red; return "LED " + L.name + " " + L.nm + " nm"; } },
+  npn:      { name:"트랜지스터", terms:[[-40,0,"B"],[20,-40,"C"],[20,40,"E"]], def:{beta:160}, box:[96,92],
               label:function(p){ return "트랜지스터 β " + p.beta; } },
-  ammeter:  { name:"전류계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:0.5}, box:[92,52], label:null },
-  voltmeter:{ name:"전압계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:15}, box:[92,52], label:null },
-  scope:    { name:"오실로스코프", terms:[[-40,44,"1"],[0,44,"2"],[40,44,"⏚"]], def:{tdiv:0.2, vdiv:1}, box:[128,104], label:null }
+  spk:      { name:"스피커", terms:[[-40,0,""],[40,0,""]], def:{sound:false}, box:[92,72],
+              label:function(){ return "스피커 8 Ω"; } },
+  ammeter:  { name:"전류계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:0.5, mode:"dc"}, box:[92,52], label:null },
+  voltmeter:{ name:"전압계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:15, mode:"dc"}, box:[92,52], label:null },
+  scope:    { name:"오실로스코프", terms:[[-40,44,"1+"],[40,44,"1−"],[-64,0,"2+"],[64,0,"2−"]], def:{tdiv:0.01, vdiv:1, src:false}, box:[128,104], label:null }
 };
 
 function rotPt(x, y, rot){ for(var k=0;k<(rot||0);k++){ var t = x; x = -y; y = t; } return [x, y]; }
 function termWorld(p, k){ var t = DEFS[p.type].terms[k], r = rotPt(t[0], t[1], p.rot); return [p.x + r[0], p.y + r[1]]; }
+function termLabel(p, k){
+  if(p.type === "cap") return (p.p.c >= 100 && k === 0) ? "+" : "";
+  return DEFS[p.type].terms[k][2] || "";
+}
 function wirePath(a, b, flip){
   return flip ? "M"+a[0]+" "+a[1]+" L"+a[0]+" "+b[1]+" L"+b[0]+" "+b[1]
               : "M"+a[0]+" "+a[1]+" L"+b[0]+" "+a[1]+" L"+b[0]+" "+b[1];
@@ -665,8 +866,10 @@ function partBody(p, st){
     }
     break;
   case "ac":
-    s += lead(-60,-46) + lead(46,60) + '<rect x="-46" y="-24" width="92" height="48" rx="6" fill="#44515A"/>'
-       + '<path d="M-24 0 C-18 -18 -6 -18 0 0 S18 18 24 0" fill="none" stroke="#F2C94C" stroke-width="2.4"/>';
+    s += lead(-60,-46) + lead(46,60) + '<rect x="-46" y="-24" width="92" height="48" rx="6" fill="#44515A"/>';
+    s += q.mode === "dc"
+      ? '<path d="M-22 -4 L22 -4 M-22 6 L-12 6 M-4 6 L6 6 M14 6 L22 6" stroke="#F2C94C" stroke-width="2.4"/>'
+      : '<path d="M-24 0 C-18 -18 -6 -18 0 0 S18 18 24 0" fill="none" stroke="#F2C94C" stroke-width="2.4"/>';
     break;
   case "sw":
     var ang = 25*Math.PI/180, ex = q.on ? 30 : -30 + 60*Math.cos(ang), ey = q.on ? 0 : -60*Math.sin(ang);
@@ -683,6 +886,13 @@ function partBody(p, st){
       for(k=0;k<4;k++) s += '<rect x="'+(off[k]-1.25)+'" y="-7" width="2.5" height="14" fill="'+b[k]+'"/>';
     }else s += '<path d="M-3 -11 q-6 -7 0 -13 q6 -6 0 -12" fill="none" stroke="#9E9E9E" stroke-width="2" stroke-linecap="round"/>';
     break;
+  case "pot":
+    var wx = -18 + 36*q.pos/100;
+    s += lead(-40,40) + '<rect x="-20" y="-8" width="40" height="16" rx="3" fill="#5C6F82" stroke="#3F4E5C"/>'
+       + '<line x1="0" y1="-40" x2="0" y2="-26" stroke="#8C8C8C" stroke-width="2"/>'
+       + '<polyline points="0,-26 '+wx.toFixed(1)+',-26 '+wx.toFixed(1)+',-14" fill="none" stroke="var(--ink)" stroke-width="2"/>'
+       + '<polygon points="'+(wx-4.5).toFixed(1)+',-16 '+(wx+4.5).toFixed(1)+',-16 '+wx.toFixed(1)+',-8" fill="var(--ink)"/>';
+    break;
   case "nichrome":
     var loops = Math.max(3, Math.round(4 + q.len/8)), N = loops*8, d = "M-60 0 L-52 0", pen = true;
     for(k=0;k<=N;k++){
@@ -696,7 +906,7 @@ function partBody(p, st){
     s += '<path d="'+d+'" fill="none" stroke="'+hot(T)+'" stroke-width="'+(0.8+q.dia*4).toFixed(1)+'" stroke-linejoin="round"/>';
     break;
   case "lamp":
-    var g = br ? 0 : clamp((T-800)/1600, 0, 1);
+    var g = br ? 0 : Math.max(0, Math.min(1, (T-800)/1600));
     s += lead(-40,-11) + lead(11,40);
     if(g > 0) s += '<circle cx="0" cy="-14" r="'+(18+10*g).toFixed(1)+'" fill="#FFD36B" opacity="'+(0.85*g).toFixed(2)+'" filter="url(#glow)"/>';
     s += '<circle cx="0" cy="-14" r="12" fill="'+(g > 0 ? mix("#FFFFFF","#FFF1B8",g) : "rgba(255,255,255,.35)")+'" stroke="#9AA6A6" stroke-width="1.2"/>';
@@ -705,7 +915,10 @@ function partBody(p, st){
     s += '<rect x="-11" y="-5" width="22" height="10" rx="2" fill="#A7A7A7"/>';
     break;
   case "cap":
-    s += lead(-40,-6) + lead(6,40) + '<rect x="-8" y="-16" width="4" height="32" fill="var(--ink)"/><rect x="4" y="-16" width="4" height="32" fill="var(--ink)"/>';
+    if(q.c >= 100){
+      s += lead(-40,-14) + lead(14,40) + '<rect x="-14" y="-12" width="28" height="24" rx="5" fill="#2F4F7F"/>'
+         + '<rect x="6" y="-12" width="6" height="24" fill="#C9D1CC"/>';
+    }else s += lead(-40,-6) + lead(6,40) + '<rect x="-8" y="-16" width="4" height="32" fill="var(--ink)"/><rect x="4" y="-16" width="4" height="32" fill="var(--ink)"/>';
     break;
   case "coil":
     var dc = "M-42 0"; for(k=0;k<6;k++) dc += " a7 9 0 0 1 14 0";
@@ -714,10 +927,17 @@ function partBody(p, st){
   case "diode":
     s += lead(-40,40) + '<polygon points="-9,-10 -9,10 9,0" fill="var(--ink)"/><line x1="10" y1="-10" x2="10" y2="10" stroke="var(--ink)" stroke-width="2.5"/>';
     break;
+  case "bridge":
+    s += '<path d="M0 -50 L0 -34 M0 50 L0 34 M-50 0 L-34 0 M50 0 L34 0" stroke="#8C8C8C" stroke-width="2"/>'
+       + '<rect x="-34" y="-34" width="68" height="68" rx="6" fill="#2F3A36"/>'
+       + '<path d="M0 -24 L24 0 L0 24 L-24 0 Z" fill="none" stroke="#C9D1CC" stroke-width="1.5"/>'
+       + '<path d="M-16 -8 l6 -6 M8 -14 l6 6 M-16 8 l6 6 M8 14 l6 -6" stroke="#F2C94C" stroke-width="2.5"/>';
+    break;
   case "led":
-    var L = LEDS[q.color] || LEDS.red, gl = br ? 0 : clamp((st.i || 0)/0.015, 0, 1);
+    var L = LEDS[q.color] || LEDS.red, cur = st.i || 0;
+    var gl = (br || cur <= 5e-5) ? 0 : Math.max(0, Math.min(1, Math.log(cur/5e-5)/Math.log(300)));
     s += lead(-40,-10) + lead(10,40);
-    if(gl > 0.02) s += '<circle cx="0" cy="-4" r="'+(14+10*gl).toFixed(1)+'" fill="'+L.col+'" opacity="'+(0.7*gl).toFixed(2)+'" filter="url(#glow)"/>';
+    if(gl > 0.02) s += '<circle cx="0" cy="-4" r="'+(14+10*gl).toFixed(1)+'" fill="'+L.col+'" opacity="'+(0.25+0.5*gl).toFixed(2)+'" filter="url(#glow)"/>';
     s += '<path d="M-10 6 L-10 -6 A10 10 0 0 1 10 -6 L10 6 Z" fill="'+(br ? "#3A3A3A" : mix("#9E9E9E", L.col, 0.35+0.65*gl))+'" stroke="#8C8C8C"/>';
     s += '<rect x="-12" y="6" width="24" height="4" rx="1" fill="#9E9E9E"/>';
     break;
@@ -729,15 +949,26 @@ function partBody(p, st){
        + '<polyline points="-4,7 20,22 20,40" fill="none" stroke="var(--ink)" stroke-width="2"/>'
        + '<polygon points="17,20 8.1,19.2 12.3,12.4" fill="var(--ink)"/>';
     break;
+  case "spk":
+    var amp = st.amp || 0;
+    s += lead(-40,-14) + lead(14,40) + '<rect x="-14" y="-8" width="28" height="18" rx="2" fill="#4A4A4A"/>'
+       + '<path d="M-10 -8 L-22 -26 L22 -26 L10 -8 Z" fill="#6D6D6D" stroke="#4A4A4A"/>';
+    if(amp > 0.002){
+      var op = Math.max(0.25, Math.min(1, amp*6)).toFixed(2);
+      s += '<path d="M-16 -32 Q0 -40 16 -32 M-22 -38 Q0 -48 22 -38" fill="none" stroke="var(--copper)" stroke-width="1.6" opacity="'+op+'"/>';
+    }
+    break;
   case "ammeter":
   case "voltmeter":
     s += lead(-40,-22) + lead(22,40) + '<circle cx="0" cy="0" r="22" fill="#F6F2E7" stroke="#6B6B6B" stroke-width="2"/>';
+    if(q.mode === "ac") s += '<text x="0" y="17" text-anchor="middle" font-size="9" fill="#6B6455">~</text>';
     break;
   case "scope":
     s += '<rect x="-60" y="-44" width="120" height="76" rx="6" fill="#2F3A36"/>'
        + '<rect x="-50" y="-36" width="100" height="52" rx="3" fill="#0E1A16"/>'
-       + '<path d="M-44 -10 C-34 -30 -24 -30 -14 -10 S6 10 16 -10 S36 -30 44 -10" fill="none" stroke="#7CE0A0" stroke-width="2"/>';
-    [-40,0,40].forEach(function(x){ s += '<line x1="'+x+'" y1="32" x2="'+x+'" y2="44" stroke="#8C8C8C" stroke-width="2"/>'; });
+       + '<path d="M-44 -10 C-34 -30 -24 -30 -14 -10 S6 10 16 -10 S36 -30 44 -10" fill="none" stroke="#7CE0A0" stroke-width="2"/>'
+       + '<line x1="-40" y1="32" x2="-40" y2="44" stroke="#F2C94C" stroke-width="2"/><line x1="40" y1="32" x2="40" y2="44" stroke="#F2C94C" stroke-width="2"/>'
+       + '<line x1="-64" y1="0" x2="-60" y2="0" stroke="#56CCF2" stroke-width="2"/><line x1="60" y1="0" x2="64" y2="0" stroke="#56CCF2" stroke-width="2"/>';
     break;
   }
   return s;
@@ -756,20 +987,21 @@ function partSVG(p, st, o){
   }
   var tags = o.tags || {}, lab = d.label ? d.label(p.p) : (tags[p.id] || d.name);
   if(p.type === "scope") lab = "오실로스코프 " + (tags[p.id] || "");
-  var half = rot % 2 ? d.box[0]/2 : d.box[1]/2;
-  if(rot % 2 === 0) s += '<text x="'+p.x+'" y="'+(p.y-half-7)+'" text-anchor="middle" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
-  else s += '<text x="'+(p.x+half+8)+'" y="'+(p.y+4)+'" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
+  var half = rot % 2 ? d.box[1]/2 : d.box[1]/2;
+  if(rot % 2 === 0) s += '<text x="'+p.x+'" y="'+(p.y-d.box[1]/2-7)+'" text-anchor="middle" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
+  else if(rot === 1) s += '<text x="'+(p.x+half+8)+'" y="'+(p.y+4)+'" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
+  else s += '<text x="'+(p.x-half-8)+'" y="'+(p.y+4)+'" text-anchor="end" font-size="12" fill="var(--ink)" pointer-events="none">'+esc(lab)+'</text>';
 
   d.terms.forEach(function(t, k){
-    var w = termWorld(p, k), key = p.id + ":" + k, pend = o.pending === key;
+    var w = termWorld(p, k), key = p.id + ":" + k, pend = o.pending === key, tl = termLabel(p, k);
     s += '<g'+(o.interactive ? ' data-term="'+key+'" style="cursor:crosshair"' : '')+'>';
     if(o.interactive) s += '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="13" fill="transparent"/>';
     if(pend) s += '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="10" fill="none" stroke="var(--copper)" stroke-width="2"/>';
-    s += '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="5" fill="'+(t[2]==="+" ? RED : "#B8860B")+'" stroke="var(--card)" stroke-width="1.5"/></g>';
-    if(t[2]){
+    s += '<circle cx="'+w[0]+'" cy="'+w[1]+'" r="5" fill="'+(tl.charAt(tl.length-1)==="+" ? RED : "#B8860B")+'" stroke="var(--card)" stroke-width="1.5"/></g>';
+    if(tl){
       var dx = w[0]-p.x, dy = w[1]-p.y;
-      if(Math.abs(dx) >= Math.abs(dy)) s += '<text x="'+w[0]+'" y="'+(w[1]-10)+'" text-anchor="middle" font-size="10.5" fill="var(--ink-soft)" pointer-events="none">'+t[2]+'</text>';
-      else s += '<text x="'+(w[0]+10)+'" y="'+(w[1]+(dy>0?-4:12))+'" font-size="10.5" fill="var(--ink-soft)" pointer-events="none">'+t[2]+'</text>';
+      if(Math.abs(dx) >= Math.abs(dy)) s += '<text x="'+w[0]+'" y="'+(w[1]-10)+'" text-anchor="middle" font-size="10.5" fill="var(--ink-soft)" pointer-events="none">'+tl+'</text>';
+      else s += '<text x="'+(w[0]+10)+'" y="'+(w[1]+(dy>0?-4:12))+'" font-size="10.5" fill="var(--ink-soft)" pointer-events="none">'+tl+'</text>';
     }
   });
   return s;
@@ -786,12 +1018,37 @@ function circuitSVG(c, stOf, o){
   c.parts.forEach(function(p){ by[p.id] = p; });
   c.wires.forEach(function(w){
     var pa = by[w.a.pid], pb = by[w.b.pid];
-    if(pa && pb) s += wireSVG(w, termWorld(pa, w.a.t), termWorld(pb, w.b.t), { interactive:o.interactive, sel:o.selWire === w.id });
+    if(pa && pb && DEFS[pa.type].terms[w.a.t] && DEFS[pb.type].terms[w.b.t])
+      s += wireSVG(w, termWorld(pa, w.a.t), termWorld(pb, w.b.t), { interactive:o.interactive, sel:o.selWire === w.id });
   });
   c.parts.forEach(function(p){
     s += partSVG(p, stOf ? stOf(p) : {}, { interactive:o.interactive, sel:o.sel === p.id, pending:o.pending, tags:tags });
   });
   return s;
+}
+// 담은 파형 그리기 (오실로스코프 화면과 같은 모양)
+function waveSVG(wv){
+  var s = '<svg class="scope" viewBox="0 0 500 320" role="img" aria-label="'+esc(wv.label||"파형")+'"><rect width="500" height="320" fill="#0E1A16"/>', k;
+  for(k=1;k<10;k++) s += '<line x1="'+k*50+'" y1="0" x2="'+k*50+'" y2="320" stroke="#7CE0A0" stroke-opacity="'+(k===5?0.35:0.14)+'"/>';
+  for(k=1;k<8;k++) s += '<line x1="0" y1="'+k*40+'" x2="500" y2="'+k*40+'" stroke="#7CE0A0" stroke-opacity="'+(k===4?0.35:0.14)+'"/>';
+  var cols = ["#F2C94C","#56CCF2","#FF8A65"], names = ["CH1","CH2","전원 장치"];
+  (wv.ch || []).forEach(function(arr, c){
+    if(!arr) return;
+    var pts = [];
+    arr.forEach(function(v, j){
+      if(v === null || v === undefined) return;
+      pts.push((j/(arr.length-1)*500).toFixed(1) + "," + Math.max(-4, Math.min(324, 160 - v/wv.vdiv*40)).toFixed(1));
+    });
+    if(pts.length > 1) s += '<polyline points="'+pts.join(" ")+'" fill="none" stroke="'+cols[c]+'" stroke-width="2"'+(c===2?' stroke-dasharray="5 3"':'')+'/>';
+  });
+  var lx = 10;
+  (wv.ch || []).forEach(function(arr, c){
+    if(!arr || !arr.some(function(v){ return v !== null; })) return;
+    s += '<text x="'+lx+'" y="18" font-size="12" fill="'+cols[c]+'" font-family="IBM Plex Mono, monospace">'+names[c]+'</text>'; lx += c === 1 ? 44 : 40;
+  });
+  var td = wv.tdiv < 1 ? trim3(wv.tdiv*1000) + " ms" : wv.tdiv + " s";
+  s += '<text x="490" y="310" text-anchor="end" font-size="11" fill="#7CE0A0" font-family="IBM Plex Mono, monospace">'+td+'/칸, '+wv.vdiv+' V/칸</text>';
+  return s + '</svg>';
 }
 /* ==== 부품 그림 끝 ==== */
 
@@ -803,9 +1060,10 @@ var rt = {};               // 부품마다 시뮬레이션 상태 (온도, 충�
 var nextId = 1;
 var ui = { sel:null, selWire:null, pending:null, drag:null, mouse:null };
 var PALETTE = [
-  ["전원", ["battery","ac"]],
+  ["전원", ["ac","battery"]],
   ["연결", ["sw"]],
-  ["소자", ["resistor","nichrome","lamp","cap","coil","diode","led","npn"]],
+  ["저항", ["resistor","pot","nichrome","lamp"]],
+  ["소자", ["cap","coil","diode","bridge","led","npn","spk"]],
   ["측정", ["ammeter","voltmeter","scope"]]
 ];
 
@@ -828,7 +1086,10 @@ function addWire(pa, ta, pb, tb){
     return (w.a.pid===a.pid && w.a.t===a.t && w.b.pid===b.pid && w.b.t===b.t) ||
            (w.a.pid===b.pid && w.a.t===b.t && w.b.pid===a.pid && w.b.t===a.t);
   });
-  if(!dup) circuit.wires.push({ id:nextId++, a:a, b:b, flip:false });
+  if(dup) return null;
+  var w = { id:nextId++, a:a, b:b, flip:false };
+  circuit.wires.push(w);
+  return w;
 }
 function removePart(id){
   circuit.parts = circuit.parts.filter(function(p){ return p.id !== id; });
@@ -838,14 +1099,134 @@ function removePart(id){
 }
 function parseKey(k){ var a = k.split(":"); return { pid:+a[0], t:+a[1] }; }
 
-function loadBasic(){
+/* ---------- 실험 매뉴얼 회로 (기본 회로 불러오기) ---------- */
+var PRESETS = [
+  { group:"옴의 법칙", items:[["ohm","옴의 법칙 (12 Ω)"]] },
+  { group:"저항의 직렬연결과 병렬연결", items:[["ser_i","직렬: 구간별 전류"],["ser_v","직렬: 구간별 전압"],["par_i","병렬: 구간별 전류"],["par_v","병렬: 구간별 전압"]] },
+  { group:"RLC 회로", items:[["rc","RC 직렬 (4.7 Ω, 2 µF)"],["rl","RL 직렬 (4.7 Ω, 10 mH)"],["rlc","RLC 직렬 (39 Ω, 2 µF, 10 mH)"]] },
+  { group:"다이오드 정류 회로", items:[["half","반파 정류"],["half_c","반파 정류 + 평활 (220 µF)"],["full","전파 정류 (브리지)"],["full_c","전파 정류 + 평활 (220 µF)"]] },
+  { group:"트랜지스터 증폭 회로", items:[["led_on","사전 실험: LED가 켜지는 전압"],["tr_sw","실험 1: 스위치 작용"],["tr_amp","실험 2: 전류 증폭률"],["spk_only","스피커만 연결"],["spk_amp","추가 실험: 스피커 증폭"]] },
+  { group:"플랑크 상수", items:[["planck","LED 문턱 전압"]] }
+];
+var PRESET_KIND = { rc:"fi", rl:"fi", rlc:"fi", planck:"lv", tr_sw:"tr", tr_amp:"tr", ohm:"vi", ser_i:"vi", ser_v:"vi", par_i:"vi", par_v:"vi" };
+
+function buildPreset(id){
   circuit = { parts:[], wires:[] }; rt = {}; nextId = 1; ui.sel = null; ui.selWire = null; ui.pending = null;
-  var b = addPart("battery",160,420,0), r = addPart("resistor",420,160,0), v = addPart("voltmeter",420,280,0),
-      a = addPart("ammeter",640,300,1), s = addPart("sw",420,500,0);
-  addWire(b,1,r,0); addWire(r,0,v,0); addWire(r,1,v,1); addWire(r,1,a,0); addWire(a,1,s,1); addWire(s,0,b,0);
+  function P(type, x, y, rot, par){ var p = addPart(type, x, y, rot||0); if(par) for(var k in par) p.p[k] = par[k]; return p; }
+  function S(mode, v, f){ return P("ac", 200, 500, 2, { mode:mode, v:v, f:f || 100 }); }   // + 단자는 왼쪽(140,500), − 단자는 오른쪽(260,500)
+  function Wr(a, ta, b, tb, flip){ var w = addWire(a, ta, b, tb); if(w) w.flip = !!flip; }
+  var s, a, r, r2, v, c, l, d, b, q, bt, rc, sc, sp, r1, rb;
+  switch(id){
+  case "ohm":
+    s = S("dc", 1); a = P("ammeter",300,220); r = P("resistor",500,220,0,{r:12}); v = P("voltmeter",500,360,0,{range:3});
+    Wr(s,1,a,0,true); Wr(a,1,r,0); Wr(r,0,v,0); Wr(r,1,v,1); Wr(r,1,s,0,true); break;
+  case "ser_i":
+    s = S("dc", 2); a = P("ammeter",300,220); r = P("resistor",480,220,0,{r:39}); r2 = P("resistor",680,220,0,{r:12});
+    Wr(s,1,a,0,true); Wr(a,1,r,0); Wr(r,1,r2,0); Wr(r2,1,s,0,true); break;
+  case "ser_v":
+    s = S("dc", 2); a = P("ammeter",280,220); r = P("resistor",440,220,0,{r:39}); r2 = P("resistor",640,220,0,{r:12}); v = P("voltmeter",440,360,0,{range:3});
+    Wr(s,1,a,0,true); Wr(a,1,r,0); Wr(r,1,r2,0); Wr(r2,1,s,0,true); Wr(r,0,v,0); Wr(r,1,v,1); break;
+  case "par_i":
+  case "par_v":
+    s = S("dc", 2); a = P("ammeter",300,220); r = P("resistor",520,220,0,{r:39}); r2 = P("resistor",520,360,0,{r:12});
+    Wr(s,1,a,0,true); Wr(a,1,r,0); Wr(r,0,r2,0); Wr(r,1,r2,1); Wr(r,1,s,0,true);
+    if(id === "par_v"){ v = P("voltmeter",520,440,0,{range:3}); Wr(r2,0,v,0); Wr(r2,1,v,1); }
+    break;
+  case "rc": case "rl": case "rlc":
+    s = S("sine", 2, 100);
+    a = P("ammeter", id === "rlc" ? 280 : 300, 220, 0, { mode:"ac" });
+    if(id === "rlc"){
+      r = P("resistor",420,220,0,{r:39}); c = P("cap",580,220,0,{c:2}); l = P("coil",760,220,0,{l:0.01});
+      Wr(s,1,a,0,true); Wr(a,1,r,0); Wr(r,1,c,0); Wr(c,1,l,0); Wr(l,1,s,0,true);
+    }else{
+      r = P("resistor",480,220,0,{r:4.7});
+      var x = id === "rc" ? P("cap",660,220,0,{c:2}) : P("coil",680,220,0,{l:0.01});
+      Wr(s,1,a,0,true); Wr(a,1,r,0); Wr(r,1,x,0); Wr(x,1,s,0,true);
+    }
+    break;
+  case "half": case "half_c":
+    s = S("sine", 2, 30); d = P("diode",400,220); r = P("resistor",620,220,0,{r:39});
+    sc = P("scope",620,100,0,{ src:true, tdiv:0.01, vdiv:0.5 });
+    Wr(s,1,d,0,true); Wr(d,1,r,0); Wr(r,1,s,0,true); Wr(sc,0,r,0); Wr(sc,1,r,1);
+    if(id === "half_c"){ c = P("cap",620,360,0,{c:220}); Wr(r,0,c,0); Wr(r,1,c,1); }
+    break;
+  case "full": case "full_c":
+    s = S("sine", 2, 30); b = P("bridge",320,360); r = P("resistor",620,220,0,{r:39});
+    sc = P("scope",620,100,0,{ src:true, tdiv:0.01, vdiv:0.5 });
+    Wr(s,1,b,0,true); Wr(s,0,b,1,false); Wr(b,2,r,0,true); Wr(r,1,b,3,true); Wr(sc,0,r,0); Wr(sc,1,r,1);
+    if(id === "full_c"){ c = P("cap",620,320,0,{c:220}); Wr(r,0,c,0); Wr(r,1,c,1); }
+    break;
+  case "led_on": case "planck":
+    s = S("dc", id === "planck" ? 1.5 : 1); l = P("led",500,220); v = P("voltmeter",500,360,0,{range:3});
+    Wr(s,1,l,0,true); Wr(l,1,s,0,true); Wr(l,0,v,0); Wr(l,1,v,1); break;
+  case "tr_sw": case "tr_amp":
+    s = id === "tr_sw" ? S("dc", 0) : S("sine", 1.5, 1);
+    rb = P("resistor",300,220,0,{r:22000}); q = P("npn",480,260,0,{beta:160});
+    bt = P("battery",760,500,0,{cells:4}); rc = P("resistor",820,360,1,{r:330});
+    Wr(s,1,rb,0,true); Wr(rb,1,q,0,false); Wr(q,2,s,0,true); Wr(bt,0,q,2,false); Wr(bt,1,rc,1);
+    if(id === "tr_sw"){ l = P("led",660,140,2); Wr(rc,0,l,0,true); Wr(l,1,q,1,false); }
+    else{
+      Wr(rc,0,q,1,true);
+      sc = P("scope",740,360,3,{ src:true, tdiv:0.2, vdiv:0.5 }); Wr(sc,0,rc,1); Wr(sc,1,rc,0);
+    }
+    break;
+  case "spk_only":
+    s = S("sine", 0.5, 500); sp = P("spk",500,220,0,{sound:true});
+    Wr(s,1,sp,0,true); Wr(sp,1,s,0,true); break;
+  case "spk_amp":
+    s = S("sine", 0.1, 500); c = P("cap",300,220,2,{c:220}); q = P("npn",520,300,0,{beta:160});
+    rb = P("resistor",400,380,1,{r:22000}); bt = P("battery",760,500,0,{cells:4});
+    r1 = P("resistor",660,140,0,{r:1000}); sp = P("spk",760,300,1,{sound:true});
+    Wr(s,1,c,1,true); Wr(c,0,q,0,false); Wr(c,0,rb,0,false); Wr(rb,1,s,0,true); Wr(q,2,s,0,true);
+    Wr(bt,0,s,0); Wr(bt,1,sp,1,true); Wr(bt,1,r1,1,true); Wr(r1,0,q,0,false); Wr(sp,0,q,1);
+    break;
+  }
+  if(PRESET_KIND[id]) state.vkind = PRESET_KIND[id];
   vs.chosen = true;
+  if(circuit.parts.some(function(p){ return p.type === "spk" && p.p.sound; })) soundOn();
+  drawRows();
   edited();
 }
+function loadBasic(){ buildPreset("ohm"); }
+
+function openPresets(){ $("presets").hidden = false; renderPresets(); }
+function renderPresets(){
+  var h = '<div class="mhead"><h2>기본 회로 불러오기</h2><button class="btn ghost slim" type="button" data-pact="close">닫기</button></div>';
+  if(!vs.presetOk){
+    h += '<p class="muted">실험 매뉴얼에 나오는 회로를 고를 수 있습니다. 선생님이 알려 주는 암호를 넣어 주세요.</p>'
+       + '<div class="pin-row"><input id="ppin" type="password" inputmode="numeric" autocomplete="off" aria-label="선생님 암호" placeholder="암호">'
+       + '<button class="btn slim" type="button" data-pact="pin">확인</button></div>';
+  }else{
+    h += '<p class="muted">회로를 고르면 지금 판의 회로는 지워지고 새 회로가 놓입니다.</p>';
+    PRESETS.forEach(function(g){
+      h += '<h3>'+g.group+'</h3><div class="plist">' + g.items.map(function(it){
+        return '<button class="btn ghost slim" type="button" data-preset="'+it[0]+'">'+it[1]+'</button>';
+      }).join("") + '</div>';
+    });
+  }
+  $("presets-box").innerHTML = h;
+  var pin = $("ppin");
+  if(pin){ pin.focus(); pin.addEventListener("keydown", function(e){ if(e.key === "Enter") checkPresetPin(); }); }
+}
+function checkPresetPin(){
+  if($("ppin").value === TEACHER_PIN){ vs.presetOk = true; renderPresets(); }
+  else{ toast("암호가 맞지 않습니다"); $("ppin").select(); }
+}
+$("presets").addEventListener("click", function(e){
+  var t = e.target;
+  if(t === $("presets")){ $("presets").hidden = true; return; }
+  var b = t.closest("[data-pact],[data-preset]"); if(!b) return;
+  var act = b.getAttribute("data-pact");
+  if(act === "close") $("presets").hidden = true;
+  else if(act === "pin") checkPresetPin();
+  else if(b.hasAttribute("data-preset")){
+    if(circuit.parts.length && !confirm("지금 회로를 지우고 '" + b.textContent + "' 회로를 불러올까요?")) return;
+    $("presets").hidden = true;
+    ui.lastPreset = b.textContent;
+    buildPreset(b.getAttribute("data-preset"));
+    toast("'" + b.textContent + "' 회로를 불러왔습니다");
+  }
+});
 
 /* ---------- 시작 방식 ---------- */
 var serverStart = null;
@@ -894,9 +1275,16 @@ function resistanceOf(p){
   var T = vs.factors.heat ? r.T : PHYS.T0;
   return th.R0*(1 + th.alpha*(T - PHYS.T0));
 }
-function coilR(p){ return 10 + 10*p.p.l; }
+function coilR(p){ return 0.5 + 60*p.p.l; }          // 감은 도선의 저항 (10 mH → 약 1.1 Ω)
+// LED: 빛이 보이기 시작하는(약 0.1 mA) 문턱 전압 = 광자 에너지(1239.8/λ eV) − 0.25 V
+function ledVth(color){ return 1239.8/(LEDS[color] || LEDS.red).nm - 0.25; }
+function ledIs(color){ return 1e-4/Math.exp(ledVth(color)/(2*VT)); }
 function srcR(p){ return vs.factors.battery ? (p.type === "battery" ? p.p.cells*PHYS.cellR : PHYS.acR) : PHYS.idealR; }
-function srcE(p){ return p.type === "battery" ? p.p.cells*PHYS.cellEmf : p.p.vp*Math.sin(2*Math.PI*p.p.f*simTime); }
+function srcE(p){
+  if(p.type === "battery") return p.p.cells*PHYS.cellEmf;
+  // 진동수를 바꿔도 파형이 끊기지 않도록 위상을 이어 간다
+  return p.p.mode === "dc" ? p.p.v : p.p.v*Math.sin((rt[p.id] && rt[p.id].ph) || 0);
+}
 function ammR(p){ return vs.factors.meter ? PHYS.ammBurden/p.p.range : PHYS.idealR; }
 function voltG(p){ return vs.factors.meter ? 1/(p.p.range*PHYS.voltOhmPerVolt) : PHYS.openG; }
 
@@ -921,14 +1309,14 @@ function compile(){
     DEFS[p.type].terms.forEach(function(t,k){ var r = node(p,k); (touch[r] = touch[r] || {})[p.id] = true; });
   });
 
-  var warns = [], tags = circuitTags(circuit), hasAC = false, react = false, nonlin = false, maxF = 0;
+  var warns = [], tags = circuitTags(circuit), hasAC = false, react = false, nonlin = false, maxF = 0, minF = Infinity;
   parts.forEach(function(p){
     var r = rt[p.id], nm = partName(p, tags);
-    r.blocked = false; r.over = false; r.trip = 0; r.conn = true;
+    r.blocked = false; r.over = false; r.trip = 0; r.conn = true; r.hi = undefined;
     var n = DEFS[p.type].terms.map(function(t,k){ return idx[p.id+":"+k]; });
-    if(p.type === "ac"){ hasAC = true; maxF = Math.max(maxF, p.p.f); }
+    if(p.type === "ac" && p.p.mode === "sine"){ hasAC = true; maxF = Math.max(maxF, p.p.f); minF = Math.min(minF, p.p.f); }
     if(p.type === "cap" || p.type === "coil") react = true;
-    if(p.type === "diode" || p.type === "led" || p.type === "npn") nonlin = true;
+    if(p.type === "diode" || p.type === "led" || p.type === "npn" || p.type === "bridge") nonlin = true;
 
     if(p.type === "battery" || p.type === "ac"){
       if(deg[n[0]] && deg[n[1]] && node(p,0) === node(p,1)){
@@ -973,9 +1361,12 @@ function compile(){
 
   var h = hasAC ? Math.min(1e-3, 1/(maxF*60)) : react ? 1e-3 : 4e-3;
   var elems = parts.map(function(p){
-    return { p:p, r:rt[p.id], n:DEFS[p.type].terms.map(function(t,k){ return idx[p.id+":"+k]; }), vd:0, vbe:0, vbc:0 };
+    return { p:p, r:rt[p.id], n:DEFS[p.type].terms.map(function(t,k){ return idx[p.id+":"+k]; }), vd:0, vbe:0, vbc:0, d0:0, d1:0, d2:0, d3:0 };
   });
+  var psu = parts.filter(function(p){ return p.type === "ac"; })[0];
   sim = { N:N, idx:idx, deg:deg, wires:wires, elems:elems, warns:warns, nonlin:nonlin, h:h,
+          trap: hasAC,   // 교류가 있으면 사다리꼴 적분(공진에서 정확), 아니면 후진 오일러(안정)
+          tauPk: hasAC ? Math.max(0.15, 3/minF) : 0.3, psu: psu ? [idx[psu.id+":0"], idx[psu.id+":1"]] : null, slow:false,
           x:new Float64Array(N), A:new Float64Array(N*N), B:new Float64Array(N) };
 }
 
@@ -1037,11 +1428,22 @@ function stepOnce(h){
         var rs = srcR(p); g2(n[0], n[1], 1/rs); inj(n[0], n[1], srcE(p)/rs); break;
       case "sw": g2(n[0], n[1], q.on ? 1/PHYS.idealR : PHYS.openG); break;
       case "resistor": case "nichrome": case "lamp": g2(n[0], n[1], 1/resistanceOf(p)); break;
-      case "cap": var gc = q.c*1e-6/h; g2(n[0], n[1], gc); inj(n[0], n[1], -gc*r.v); break;
+      case "pot":
+        g2(n[0], n[2], 1/Math.max(0.05, q.r*q.pos/100)); g2(n[2], n[1], 1/Math.max(0.05, q.r*(1-q.pos/100))); break;
+      case "spk": g2(n[0], n[1], 1/8); break;
+      case "bridge":     // ~ 단자 n0, n1 / + 단자 n2 / − 단자 n3
+        diode(n[0], n[2], 1e-14, VT, e, "d0"); diode(n[1], n[2], 1e-14, VT, e, "d1");
+        diode(n[3], n[0], 1e-14, VT, e, "d2"); diode(n[3], n[1], 1e-14, VT, e, "d3"); break;
+      case "cap":
+        if(sim.trap){ var gt = 2*q.c*1e-6/h; g2(n[0], n[1], gt); inj(n[0], n[1], -gt*r.v - r.i); }
+        else{ var gc = q.c*1e-6/h; g2(n[0], n[1], gc); inj(n[0], n[1], -gc*r.v); }
+        break;
       case "coil":
-        var Lh = q.l/h, G = 1/(coilR(p) + Lh); g2(n[0], n[1], G); inj(n[0], n[1], G*Lh*r.i); break;
+        if(sim.trap){ var L2 = 2*q.l/h, Rc = coilR(p), Gt = 1/(L2 + Rc); g2(n[0], n[1], Gt); inj(n[0], n[1], Gt*((r.vl||0) + r.i*(L2 - Rc))); }
+        else{ var Lh = q.l/h, G = 1/(coilR(p) + Lh); g2(n[0], n[1], G); inj(n[0], n[1], G*Lh*r.i); }
+        break;
       case "diode": if(!r.broken) diode(n[0], n[1], 1e-14, VT, e, "vd"); break;
-      case "led": if(!r.broken) diode(n[0], n[1], (LEDS[q.color]||LEDS.red).Is, 2*VT, e, "vd"); break;
+      case "led": if(!r.broken) diode(n[0], n[1], ledIs(q.color), 2*VT, e, "vd"); break;
       case "npn":
         var Bn = n[0], Cn = n[1], En = n[2], Is = 1e-14, bF = q.beta;
         var eBE = diode(Bn, En, Is/bF, VT, e, "vbe");
@@ -1074,36 +1476,45 @@ function stepOnce(h){
         if(r.T > th.Tmax){ r.broken = true; r.T = th.Tmax; toast(th.msg); propsDirty = true; }
       }else r.T = PHYS.T0;
       break;
-    case "cap": r.i = q.c*1e-6/h*(v - r.v); r.v = v; break;
-    case "coil": var Lh = q.l/h, G = 1/(coilR(p)+Lh); r.i = G*v + G*Lh*r.i; break;
+    case "cap":
+      r.i = sim.trap ? 2*q.c*1e-6/h*(v - r.v) - r.i : q.c*1e-6/h*(v - r.v);
+      r.v = v; break;
+    case "coil":
+      if(sim.trap){ var L2 = 2*q.l/h, Rc = coilR(p), Gt = 1/(L2 + Rc); r.i = Gt*v + Gt*((r.vl||0) + r.i*(L2 - Rc)); }
+      else{ var Lh = q.l/h, G = 1/(coilR(p)+Lh); r.i = G*v + G*Lh*r.i; }
+      r.vl = v; break;
     case "led": case "diode":
       if(r.broken){ r.i = 0; break; }
-      var Is = p.type === "led" ? (LEDS[q.color]||LEDS.red).Is : 1e-14, nvt = p.type === "led" ? 2*VT : VT;
+      var Is = p.type === "led" ? ledIs(q.color) : 1e-14, nvt = p.type === "led" ? 2*VT : VT;
       r.i = Is*(Math.exp(Math.min(v/nvt, 80)) - 1);
       if(p.type === "led" && r.i > 0.06){ r.broken = true; toast("LED에 전류가 너무 많이 흘러 타 버렸습니다. 저항을 함께 연결하세요."); propsDirty = true; }
       break;
     case "battery": case "ac":
       r.vt = -v; r.i = r.blocked ? 0 : (srcE(p) + v)/srcR(p);
       r.big = Math.abs(r.i) > 3;
+      if(p.type === "ac" && q.mode === "sine") r.ph = ((r.ph || 0) + 2*Math.PI*q.f*h) % (2*Math.PI);
       break;
     case "ammeter":
       r.val = (r.blocked || r.over || !r.conn) ? 0 : v/ammR(p);
       // 켜는 순간 잠깐 크게 흐르는 전류(전구 등)로는 잠기지 않도록 천천히 따라가는 값으로 판단
       r.trip = (r.trip || 0) + (Math.abs(r.val) - (r.trip || 0))*(1 - Math.exp(-h/0.3));
       if(!r.blocked && !r.over && r.trip > 2*q.range){ r.over = true; r.val = 0; r.trip = 0; }
-      r.disp += (r.val - r.disp)*damp;
+      track(r, r.val, h);
+      r.disp += ((q.mode === "ac" ? r.amp : r.val) - r.disp)*damp;
       break;
     case "voltmeter":
       r.val = (r.blocked || !r.conn) ? 0 : v;
-      r.disp += (r.val - r.disp)*damp;
+      track(r, r.val, h);
+      r.disp += ((q.mode === "ac" ? r.amp : r.val) - r.disp)*damp;
       break;
+    case "spk": r.i = v/8; track(r, r.i, h); break;
     case "scope":
       if(r.frozen) break;
-      var com = sim.deg[n[2]] > 0;
-      var c1 = com && sim.deg[n[0]] > 0 ? x[n[0]] - x[n[2]] : NaN;
-      var c2 = com && sim.deg[n[1]] > 0 ? x[n[1]] - x[n[2]] : NaN;
-      var bf = r.buf || (r.buf = { t:new Float64Array(SCOPE_LEN), a:new Float32Array(SCOPE_LEN), b:new Float32Array(SCOPE_LEN), head:0, n:0, last:0 });
-      bf.t[bf.head] = simTime + h; bf.a[bf.head] = c1; bf.b[bf.head] = c2;
+      var c1 = sim.deg[n[0]] > 0 && sim.deg[n[1]] > 0 ? x[n[0]] - x[n[1]] : NaN;
+      var c2 = sim.deg[n[2]] > 0 && sim.deg[n[3]] > 0 ? x[n[2]] - x[n[3]] : NaN;
+      var c3 = sim.psu ? x[sim.psu[1]] - x[sim.psu[0]] : NaN;
+      var bf = r.buf || (r.buf = { t:new Float64Array(SCOPE_LEN), a:new Float32Array(SCOPE_LEN), b:new Float32Array(SCOPE_LEN), c:new Float32Array(SCOPE_LEN), head:0, n:0, last:0 });
+      bf.t[bf.head] = simTime + h; bf.a[bf.head] = c1; bf.b[bf.head] = c2; bf.c[bf.head] = c3;
       bf.head = (bf.head + 1) % SCOPE_LEN; bf.n = Math.min(bf.n + 1, SCOPE_LEN); bf.last = simTime + h;
       break;
     }
@@ -1111,6 +1522,14 @@ function stepOnce(h){
   simTime += h;
 }
 var SCOPE_LEN = 40000;
+// 교류 진폭 재기: 최댓값·최솟값을 천천히 따라가며 (최대−최소)/2를 진폭으로 본다
+function track(r, x, h){
+  var k = 1 - Math.exp(-h/sim.tauPk);
+  if(r.hi === undefined || !isFinite(r.hi)){ r.hi = x; r.lo = x; }
+  r.hi = x > r.hi ? x : r.hi + (x - r.hi)*k;
+  r.lo = x < r.lo ? x : r.lo + (x - r.lo)*k;
+  r.amp = (r.hi - r.lo)/2;
+}
 
 /* =========================================================
    7. 그리기 — 판, 설정, 계기
@@ -1143,7 +1562,7 @@ function segBtns(key, vals, cur, pid, lab){
   }).join("");
 }
 function fmtA(v){ return v < 1 ? Math.round(v*1000) + " mA" : v + " A"; }
-function fmtT(v){ return v < 1 ? Math.round(v*1000) + " ms" : v + " s"; }
+function fmtT(v){ return v < 1 ? trim3(v*1000) + " ms" : v + " s"; }
 
 function renderProps(){
   propsDirty = false;
@@ -1163,56 +1582,85 @@ function renderProps(){
   }
   var q = p.p, id = p.id, tags = circuitTags(circuit), h = '<h2>'+esc(partName(p, tags))+'</h2>';
   function ctl(label, inner){ h += '<div class="ctl"><span class="lab">'+label+'</span>'+inner+'</div>'; }
+  function seg(key, vals, lab){ return '<div class="seg">'+segBtns(key, vals, q[key], id, lab)+'</div>'; }
+  function adds(key, steps){
+    return '<div class="seg" style="margin-top:6px">' + steps.map(function(st){
+      return '<button type="button" data-add="'+key+'" data-step="'+st+'" data-pid="'+id+'">'+(st > 0 ? "+" : "−")+trim3(Math.abs(st))+'</button>';
+    }).join("") + '</div>';
+  }
+  function numIn(key, val, label, ph){
+    return '<input class="num-in" type="text" inputmode="decimal" data-num="'+key+'" data-pid="'+id+'" value="'+esc(val)+'" placeholder="'+(ph||"")+'" aria-label="'+label+'">';
+  }
   switch(p.type){
+  case "ac":
+    ctl("출력 파형", seg("mode", ["dc","sine"], function(v){ return v === "dc" ? "직류" : "사인파"; }));
+    ctl((q.mode === "dc" ? "전압" : "진폭 (최대 전압)") + ' <b>'+trim3(q.v)+' V</b>', adds("v", [-0.5,-0.1,0.1,0.5]) + numIn("v", q.v, "전압 직접 입력", "0 ~ 12 V"));
+    if(q.mode === "sine"){
+      ctl('진동수 <b>'+trim3(q.f)+' Hz</b>', adds("f", [-100,-10,10,100]) + '<div style="margin-top:6px">' + seg("f", [1,30,100,500,1000,2000], function(v){ return v+" Hz"; }) + '</div>' + numIn("f", q.f, "진동수 직접 입력", "0.5 ~ 5000 Hz"));
+    }
+    h += '<p class="muted">실험 매뉴얼의 AC/DC 모듈처럼 직류와 사인파를 낼 수 있습니다.</p>';
+    break;
   case "battery":
     ctl("건전지 개수", '<div class="stepper"><button type="button" data-set="cells" data-val="'+Math.max(1,q.cells-1)+'" data-pid="'+id+'" aria-label="하나 빼기">−</button>'
       + '<span class="num">'+q.cells+'개</span><button type="button" data-set="cells" data-val="'+Math.min(6,q.cells+1)+'" data-pid="'+id+'" aria-label="하나 더하기">+</button>'
       + '<span class="muted">표시 '+fmt(q.cells*PHYS.cellEmf,1)+' V</span></div>');
     break;
-  case "ac":
-    ctl("최대 전압", '<div class="seg">'+segBtns("vp",[1,2,3,5,6,9,12],q.vp,id,function(v){ return v+" V"; })+'</div>');
-    ctl("진동수", '<div class="seg">'+segBtns("f",[0.5,1,2,5,10,60],q.f,id,function(v){ return v+" Hz"; })+'</div>');
-    break;
   case "sw":
     h += '<button class="btn slim" type="button" data-act="toggle" data-pid="'+id+'">'+(q.on?"스위치 끄기":"스위치 켜기")+'</button>';
     break;
   case "resistor":
-    ctl("저항값", '<div class="seg">'+segBtns("r",[10,22,47,100,220,470,1000],q.r,id,ohm)+'</div>');
+    ctl("저항값", seg("r", [4.7,12,39,100,330,1000,22000], ohm) + numIn("r", trim3(q.r), "저항값 직접 입력", "직접 입력 (예: 47, 2.2k, 1M)"));
+    break;
+  case "pot":
+    ctl("전체 저항", seg("r", [10,100,1000,10000], ohm) + numIn("r", trim3(q.r), "전체 저항 직접 입력", "직접 입력 (예: 50, 4.7k)"));
+    ctl('미끄럼 단자(W) 위치 <b>'+q.pos+'%</b>', '<input type="range" min="0" max="100" step="1" value="'+q.pos+'" data-range="pos" data-pid="'+id+'" aria-label="미끄럼 단자 위치">');
+    h += '<p class="muted">A–W 사이 '+ohm(Math.round(q.r*q.pos)/100)+', W–B 사이 '+ohm(Math.round(q.r*(100-q.pos))/100)+'. A·B 두 단자만 쓰면 고정 저항, W를 함께 쓰면 저항값을 바꾸거나 전압을 나눌 수 있습니다.</p>';
     break;
   case "nichrome":
     ctl('길이 <b>'+q.len+' cm</b>', '<input type="range" min="10" max="100" step="10" value="'+q.len+'" data-range="len" data-pid="'+id+'" aria-label="니크롬선 길이">');
-    ctl("굵기 (지름)", '<div class="seg">'+segBtns("dia",[0.2,0.3,0.5],q.dia,id,function(v){ return v+" mm"; })+'</div>');
+    ctl("굵기 (지름)", seg("dia", [0.2,0.3,0.5], function(v){ return v+" mm"; }));
     break;
   case "lamp":
     h += '<p class="muted">2.5 V에서 0.3 A가 흐르도록 만든 전구입니다. 건전지 2개 정도가 알맞아요.</p>';
     break;
   case "cap":
-    ctl("전기 용량", '<div class="seg">'+segBtns("c",[100,470,1000,2200],q.c,id,function(v){ return v+" µF"; })+'</div>');
+    ctl("전기 용량", seg("c", [0.5,1,2,220,470,2200], function(v){ return v+" µF"; }) + numIn("c", trim3(q.c), "전기 용량 직접 입력 (µF)", "직접 입력 (µF)"));
+    if(q.c >= 100) h += '<p class="muted">100 µF 이상은 극성이 있는 전해 축전기입니다. 빨간 단자(+)를 높은 전압 쪽에 연결하세요.</p>';
     h += '<button class="btn ghost slim" type="button" data-act="discharge" data-pid="'+id+'">방전시키기</button>';
     break;
   case "coil":
-    ctl("자체 유도 계수", '<div class="seg">'+segBtns("l",[0.1,0.5,1,2],q.l,id,function(v){ return v+" H"; })+'</div>');
-    h += '<p class="muted">감은 도선의 저항 '+coilR(p)+' Ω이 함께 있습니다.</p>';
+    ctl("자체 유도 계수", seg("l", [0.001,0.01,0.1,1], function(v){ return trim3(v*1000)+" mH"; }) + numIn("lm", trim3(q.l*1000), "자체 유도 계수 직접 입력 (mH)", "직접 입력 (mH)"));
+    h += '<p class="muted">감은 도선의 저항 '+fmt(coilR(p),2)+' Ω이 함께 있습니다.</p>';
     break;
   case "diode":
-    h += '<p class="muted">빨간 단자(+)에서 − 쪽으로만 전류가 흐릅니다. 약 0.7 V를 넘어야 흐르기 시작해요.</p>';
+    h += '<p class="muted">빨간 단자(+)에서 − 쪽으로만 전류가 흐릅니다. 약 0.6~0.7 V를 넘어야 흐르기 시작해요. (1N4004)</p>';
+    break;
+  case "bridge":
+    h += '<p class="muted">다이오드 4개를 묶은 정류기입니다. ~ 단자 두 개에 교류를 넣으면 + 단자와 − 단자 사이로 한 방향 전류가 나옵니다.</p>';
     break;
   case "led":
-    ctl("색", '<div class="seg">'+segBtns("color",["red","green","blue"],q.color,id,function(v){ return LEDS[v].name; })+'</div>');
-    h += '<p class="muted">켜지는 전압: 빨강 약 1.8 V, 초록 약 2.1 V, 파랑 약 2.9 V. 저항 없이 연결하면 탈 수 있어요.</p>';
+    ctl("색", seg("color", ["red","yellow","green","blue"], function(v){ return LEDS[v].name; }));
+    h += '<p class="muted">파장 '+(LEDS[q.color]||LEDS.red).nm+' nm. 빨간 단자(+)를 양극(긴 다리)으로 연결합니다. 저항 없이 큰 전압을 걸면 타 버릴 수 있어요.</p>';
     break;
   case "npn":
-    ctl("전류 증폭률 β", '<div class="seg">'+segBtns("beta",[50,100,200],q.beta,id,function(v){ return v; })+'</div>');
-    h += '<p class="muted">B(베이스)에 작은 전류가 흐르면 C(컬렉터)에서 E(이미터)로 약 β배의 전류가 흐릅니다.</p>';
+    ctl("전류 증폭률 β", seg("beta", [50,100,160,200], function(v){ return v; }));
+    h += '<p class="muted">B(베이스)에 작은 전류가 흐르면 C(컬렉터)에서 E(이미터)로 약 β배의 전류가 흐릅니다. (2SC1008)</p>';
+    break;
+  case "spk":
+    h += '<p class="muted">저항 8 Ω짜리 스피커입니다. 교류 전류가 흐르면 소리가 납니다.</p>'
+       + '<button class="btn slim" type="button" data-act="sound" data-pid="'+id+'">'+(q.sound ? "소리 끄기" : "소리 켜기")+'</button>';
     break;
   case "ammeter":
-    ctl("단자", '<div class="seg">'+segBtns("range",[0.05,0.5,5],q.range,id,fmtA)+'</div>');
+    ctl("단자", seg("range", [0.05,0.5,5], fmtA));
+    ctl("측정 방식", seg("mode", ["dc","ac"], function(v){ return v === "dc" ? "직류" : "교류 (진폭)"; }));
     break;
   case "voltmeter":
-    ctl("단자", '<div class="seg">'+segBtns("range",[3,15],q.range,id,function(v){ return v+" V"; })+'</div>');
+    ctl("단자", seg("range", [3,15], function(v){ return v+" V"; }));
+    ctl("측정 방식", seg("mode", ["dc","ac"], function(v){ return v === "dc" ? "직류" : "교류 (진폭)"; }));
     break;
   case "scope":
-    h += '<p class="muted">1·2번 단자는 재고 싶은 곳에, ⏚ 단자는 기준점에 연결합니다. 파형은 아래 오실로스코프 화면에 나타납니다.</p>';
+    h += '<p class="muted">1+·1− 단자(노란색)와 2+·2− 단자(파란색)를 재고 싶은 곳 양 끝에 연결합니다. 파형은 아래 오실로스코프 화면에 나타납니다.</p>'
+       + '<button class="btn ghost slim" type="button" data-act="ssrc" data-pid="'+id+'">'+(q.src ? "전원 장치 출력 숨기기" : "전원 장치 출력도 보기")+'</button>';
     break;
   }
   h += '<p class="live" id="prop-live"></p>';
@@ -1229,6 +1677,7 @@ function updatePropsLive(){
   if(r.broken) t = "끊어졌습니다.";
   else if(p.type === "resistor" || p.type === "nichrome" || p.type === "lamp") t = p.type === "lamp" && r.T > 300 ? "필라멘트가 매우 뜨겁습니다" : "온도 약 " + Math.round(r.T) + " °C";
   else if(p.type === "cap") t = "양 끝 전압 " + fmt(r.v, 2) + " V";
+  else if(p.type === "ac") t = "지금 출력 전압 " + fmt(r.vt || 0, 2) + " V";
   el.textContent = t;
 }
 
@@ -1236,7 +1685,7 @@ var instKey = "";
 function renderInstruments(){
   var tags = circuitTags(circuit);
   var list = circuit.parts.filter(function(p){ return p.type === "ammeter" || p.type === "voltmeter" || p.type === "scope"; });
-  var key = list.map(function(p){ return p.id + p.type + (p.p.range||"") + "/" + (p.p.tdiv||"") + "/" + (p.p.vdiv||"") + (rt[p.id] && rt[p.id].frozen ? "f" : ""); }).join(",");
+  var key = list.map(function(p){ return p.id + p.type + (p.p.range||"") + (p.p.mode||"") + "/" + (p.p.tdiv||"") + "/" + (p.p.vdiv||"") + (p.p.src ? "s" : "") + (rt[p.id] && rt[p.id].frozen ? "f" : ""); }).join(",");
   if(key === instKey) return;
   instKey = key;
   if(!list.length){ $("inst").innerHTML = '<p class="muted">전류계·전압계·오실로스코프를 판에 놓으면 여기에 계기가 나타납니다.</p>'; return; }
@@ -1245,24 +1694,26 @@ function renderInstruments(){
     var id = p.id;
     if(p.type === "scope"){
       h += '<div class="card scope-card"><h3>오실로스코프 '+tags[id]+'</h3><svg class="scope" id="sc-'+id+'" viewBox="0 0 500 320" role="img" aria-label="파형"></svg>'
-         + '<div class="scope-ctl"><span class="lab">가로 1칸 시간</span><div class="seg">'+segBtns("tdiv",[0.001,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1],p.p.tdiv,id,fmtT)+'</div>'
+         + '<div class="scope-ctl"><span class="lab">가로 1칸 시간</span><div class="seg">'+segBtns("tdiv",[0.0002,0.0005,0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1],p.p.tdiv,id,fmtT)+'</div>'
          + '<span class="lab">세로 1칸 전압</span><div class="seg">'+segBtns("vdiv",[0.1,0.2,0.5,1,2,5],p.p.vdiv,id,function(v){ return v+" V"; })+'</div>'
-         + '<div><button class="btn ghost slim" type="button" data-act="freeze" data-pid="'+id+'">'+(rt[id].frozen ? "이어서 보기" : "화면 멈추기")+'</button></div></div>'
+         + '<div class="seg"><button class="btn slim" type="button" data-act="capture" data-pid="'+id+'">파형 담기</button>'
+         + '<button class="btn ghost slim" type="button" data-act="freeze" data-pid="'+id+'">'+(rt[id].frozen ? "이어서 보기" : "화면 멈추기")+'</button>'
+         + '<button class="btn ghost slim" type="button" data-act="ssrc" data-pid="'+id+'">'+(p.p.src ? "전원 장치 출력 숨기기" : "전원 장치 출력도 보기")+'</button></div></div>'
          + '<p class="mstat" id="ms-'+id+'"></p></div>';
     }else{
       var A = p.type === "ammeter";
       h += '<div class="card"><h3>'+(A ? "전류계 " : "전압계 ")+tags[id]+'</h3><svg class="meter" id="m-'+id+'" viewBox="0 0 300 196" role="img" aria-label="'+(A?"전류계":"전압계")+'"></svg>'
          + '<p class="mstat" id="ms-'+id+'"></p><div class="seg">'
          + (A ? segBtns("range",[0.05,0.5,5],p.p.range,id,fmtA) : segBtns("range",[3,15],p.p.range,id,function(v){ return v+" V"; }))
-         + '</div></div>';
+         + '</div><div class="seg">' + segBtns("mode",["dc","ac"],p.p.mode,id,function(v){ return v === "dc" ? "직류" : "교류 (진폭)"; }) + '</div></div>';
     }
   });
   $("inst").innerHTML = h;
-  list.forEach(function(p){ if(p.type !== "scope") drawMeter("m-"+p.id, p.type === "ammeter" ? "A" : "V", p.p.range); });
+  list.forEach(function(p){ if(p.type !== "scope") drawMeter("m-"+p.id, p.type === "ammeter" ? "A" : "V", p.p.range, p.p.mode); });
 }
 
 function pol(r, deg){ var a = deg*Math.PI/180; return [(150+r*Math.sin(a)).toFixed(1), (176-r*Math.cos(a)).toFixed(1)]; }
-function drawMeter(id, kind, range){
+function drawMeter(id, kind, range, mode){
   var max, unit, div;
   if(kind === "V"){ max = range; unit = "V"; div = 30; }
   else if(range < 1){ max = Math.round(range*1000); unit = "mA"; div = 50; }
@@ -1278,6 +1729,7 @@ function drawMeter(id, kind, range){
   }
   s += '<text x="150" y="130" text-anchor="middle" font-size="22" font-weight="600" fill="#222" font-family="IBM Plex Mono, monospace">'+unit+'</text>';
   s += '<text x="16" y="184" font-size="11" fill="#6B6455">단자 '+(kind==="V" ? range+" V" : fmtA(range))+'</text>';
+  if(mode === "ac") s += '<text x="150" y="152" text-anchor="middle" font-size="11" fill="#6B6455">교류 진폭</text>';
   s += '<text id="'+id+'-o" x="284" y="184" text-anchor="end" font-size="11" fill="#B3261E" opacity="0">눈금 초과</text>';
   s += '<g id="'+id+'-n" transform="rotate(-50 150 176)"><line x1="150" y1="186" x2="150" y2="50" stroke="#B3261E" stroke-width="2" stroke-linecap="round"/></g>';
   s += '<circle cx="150" cy="176" r="8" fill="#333"/>';
@@ -1299,7 +1751,7 @@ function updateMeters(slow){
     var t = "", bad = false;
     if(!r.conn) t = "두 단자를 모두 연결하세요";
     else if(r.blocked || r.over){ t = "측정 안 됨"; bad = true; }
-    else if(r.disp < -0.02*p.p.range){ t = "+ − 단자가 반대로 연결되었습니다"; bad = true; }
+    else if(p.p.mode !== "ac" && r.disp < -0.02*p.p.range){ t = "+ − 단자가 반대로 연결되었습니다"; bad = true; }
     el.textContent = t; el.className = "mstat" + (bad ? " bad" : "");
   });
 }
@@ -1313,25 +1765,31 @@ function drawScopes(){
     if(bf && bf.n){
       var Wt = q.tdiv*10, tEnd = bf.last, tStart = tEnd - Wt;
       var stride = Math.max(1, Math.floor(Wt/(sim ? sim.h : 0.004)/700));
-      var pa = [], pb = [];
+      var pa = [], pb = [], pc = [];
       for(var j=0;j<bf.n;j+=stride){
         var ix = (bf.head - 1 - j + SCOPE_LEN) % SCOPE_LEN, t = bf.t[ix];
         if(t < tStart) break;
         var X = (500 - (tEnd - t)/Wt*500).toFixed(1);
         if(!isNaN(bf.a[ix])) pa.push(X + "," + clamp(160 - bf.a[ix]/q.vdiv*40, -4, 324).toFixed(1));
         if(!isNaN(bf.b[ix])) pb.push(X + "," + clamp(160 - bf.b[ix]/q.vdiv*40, -4, 324).toFixed(1));
+        if(q.src && !isNaN(bf.c[ix])) pc.push(X + "," + clamp(160 - bf.c[ix]/q.vdiv*40, -4, 324).toFixed(1));
       }
+      if(pc.length > 1) s += '<polyline points="'+pc.join(" ")+'" fill="none" stroke="#FF8A65" stroke-width="1.6" stroke-dasharray="5 3"/>';
       if(pa.length > 1) s += '<polyline points="'+pa.join(" ")+'" fill="none" stroke="#F2C94C" stroke-width="2"/>';
       if(pb.length > 1) s += '<polyline points="'+pb.join(" ")+'" fill="none" stroke="#56CCF2" stroke-width="2"/>';
     }
     s += '<text x="10" y="18" font-size="12" fill="#F2C94C" font-family="IBM Plex Mono, monospace">CH1</text>';
     s += '<text x="50" y="18" font-size="12" fill="#56CCF2" font-family="IBM Plex Mono, monospace">CH2</text>';
+    if(q.src) s += '<text x="90" y="18" font-size="12" fill="#FF8A65" font-family="IBM Plex Mono, monospace">전원 장치</text>';
     s += '<text x="490" y="310" text-anchor="end" font-size="11" fill="#7CE0A0" font-family="IBM Plex Mono, monospace">'+fmtT(q.tdiv)+'/칸, '+q.vdiv+' V/칸</text>';
     svg.innerHTML = s;
     var el = $("ms-"+p.id);
     if(el && sim){
-      var n2 = sim.idx[p.id+":2"];
-      el.textContent = sim.deg[n2] > 0 ? (r.frozen ? "멈춤" : "") : "⏚ 단자를 기준점에 연결해야 파형이 나타납니다";
+      var dg = function(k){ return sim.deg[sim.idx[p.id+":"+k]] > 0; };
+      var any = (dg(0) && dg(1)) || (dg(2) && dg(3)) || q.src;
+      el.textContent = r.frozen ? "멈춤"
+        : !any ? "1+와 1− 단자(또는 2+와 2− 단자)를 재고 싶은 곳 양 끝에 연결하세요"
+        : sim.slow ? "진동수가 높아 계산이 따라가지 못해, 실제보다 천천히 움직입니다" : "";
     }
   });
 }
@@ -1343,6 +1801,7 @@ function renderWarns(){
     var r = rt[p.id]; if(!r) return;
     if(p.type === "ammeter" && r.over) list.push("전류계 "+tags[p.id]+"에 흐르는 전류가 눈금보다 훨씬 큽니다. 더 큰 단자로 바꾸거나 연결을 확인하세요.");
     if((p.type === "battery" || p.type === "ac") && r.big && !r.blocked) list.push(partName(p,tags)+"에서 너무 큰 전류가 나오고 있습니다. 합선된 곳이 없는지 확인하세요.");
+    if(p.type === "cap" && p.p.c >= 100 && r.v < -1) list.push(partName(p,tags)+"의 극성이 반대로 연결되어 있습니다. 빨간 단자(+)를 높은 전압 쪽으로 바꾸세요.");
   });
   var key = list.join("|");
   if(key === lastWarn) return;
@@ -1467,7 +1926,7 @@ function placeNew(type){
 
 // 설정 패널과 계기 카드의 버튼들
 $("vpanel").addEventListener("click", function(e){
-  var b = e.target.closest("[data-set],[data-act]"); if(!b) return;
+  var b = e.target.closest("[data-set],[data-act],[data-add]"); if(!b) return;
   var pid = +b.getAttribute("data-pid"), p = partById(pid), act = b.getAttribute("data-act");
   if(b.hasAttribute("data-set") && p){
     var key = b.getAttribute("data-set"), raw = b.getAttribute("data-val"), val = isNaN(+raw) ? raw : +raw;
@@ -1476,7 +1935,16 @@ $("vpanel").addEventListener("click", function(e){
     if(key === "tdiv" || key === "vdiv"){ instKey = ""; renderInstruments(); renderProps(); return; }
     edited(); return;
   }
+  if(b.hasAttribute("data-add") && p){
+    var k2 = b.getAttribute("data-add");
+    p.p[k2] = limitParam(k2, (+p.p[k2] || 0) + (+b.getAttribute("data-step")));
+    edited(); return;
+  }
   if(act === "toggle" && p){ p.p.on = !p.p.on; edited(); }
+  else if(act === "sound" && p){ p.p.sound = !p.p.sound; if(p.p.sound && !soundOn()) toast("이 브라우저에서는 소리를 낼 수 없습니다"); renderProps(); }
+  else if(act === "capture" && p) captureWave(p);
+  else if(act === "wvdel"){ state.waves.splice(+b.getAttribute("data-w"), 1); renderWaves(); }
+  else if(act === "ssrc" && p){ p.p.src = !p.p.src; instKey = ""; renderInstruments(); renderProps(); }
   else if(act === "discharge" && p){ rt[pid].v = 0; toast("축전기를 방전시켰습니다"); }
   else if(act === "fix" && p){ rt[pid].broken = false; rt[pid].T = PHYS.T0; edited(); toast("새것으로 바꿨습니다"); }
   else if(act === "rot" && p){ p.rot = ((p.rot||0) + 1) % 4; edited(); }
@@ -1488,10 +1956,40 @@ $("vpanel").addEventListener("click", function(e){
 $("props").addEventListener("input", function(e){
   var r = e.target.closest("[data-range]"); if(!r) return;
   var p = partById(+r.getAttribute("data-pid")); if(!p) return;
-  p.p[r.getAttribute("data-range")] = +r.value; rt[p.id].T = PHYS.T0; rt[p.id].broken = false;
-  var lab = r.parentNode.querySelector(".lab b"); if(lab) lab.textContent = r.value + " cm";
+  var key = r.getAttribute("data-range");
+  p.p[key] = +r.value;
+  if(key === "len"){ rt[p.id].T = PHYS.T0; rt[p.id].broken = false; }
+  var lab = r.parentNode.querySelector(".lab b"); if(lab) lab.textContent = r.value + (key === "len" ? " cm" : "%");
   compile(); renderBoard();
 });
+$("props").addEventListener("change", function(e){
+  var r = e.target.closest("[data-range]");
+  if(r){ renderProps(); return; }
+  var n = e.target.closest("[data-num]"); if(!n) return;
+  var p = partById(+n.getAttribute("data-pid")); if(!p) return;
+  var key = n.getAttribute("data-num"), val = parseValue(n.value);
+  if(!isFinite(val) || val < 0){ toast("숫자를 알맞게 넣어 주세요"); renderProps(); return; }
+  if(key === "lm"){ key = "l"; val = val/1000; }
+  if(key === "r" && val <= 0){ toast("저항값은 0보다 커야 합니다"); renderProps(); return; }
+  p.p[key] = limitParam(key, val);
+  if(["r","c","l"].indexOf(key) >= 0){ rt[p.id].T = PHYS.T0; rt[p.id].broken = false; }
+  edited();
+});
+// "2.2k", "1M", "470" 같은 값을 숫자로
+function parseValue(t){
+  var m = String(t).trim().replace(/\s|Ω|ohm/gi, "").match(/^([0-9]*\.?[0-9]+)([kKmMµu]?)$/);
+  if(!m) return NaN;
+  var v = parseFloat(m[1]), u = m[2];
+  return u === "k" || u === "K" ? v*1e3 : u === "M" ? v*1e6 : v;
+}
+function limitParam(key, v){
+  if(key === "v") return Math.round(clamp(v, 0, 12)*100)/100;
+  if(key === "f") return Math.round(clamp(v, 0.5, 5000)*10)/10;
+  if(key === "r") return clamp(v, 0.01, 1e7);
+  if(key === "c") return clamp(v, 0.001, 100000);
+  if(key === "l") return clamp(v, 1e-5, 100);
+  return v;
+}
 $("tb-rot").addEventListener("click", function(){ var p = partById(ui.sel); if(p){ p.rot = ((p.rot||0)+1)%4; edited(); } });
 $("tb-del").addEventListener("click", function(){
   if(ui.sel){ removePart(ui.sel); edited(); }
@@ -1502,12 +2000,9 @@ $("tb-clear").addEventListener("click", function(){
   circuit = { parts:[], wires:[] }; rt = {}; ui.sel = null; ui.selWire = null; ui.pending = null; vs.chosen = true;
   edited();
 });
-$("tb-basic").addEventListener("click", function(){
-  if(circuit.parts.length && !confirm("지금 회로를 지우고 기본 회로를 불러올까요?")) return;
-  loadBasic();
-});
+$("tb-basic").addEventListener("click", openPresets);
 $("ch-empty").addEventListener("click", function(){ vs.chosen = true; updateChooser(); renderBoard(); });
-$("ch-basic").addEventListener("click", loadBasic);
+$("ch-basic").addEventListener("click", openPresets);
 document.addEventListener("keydown", function(e){
   if(state.mode !== "virtual" || $("lab").hidden) return;
   var tag = (e.target.tagName || "").toLowerCase();
@@ -1604,23 +2099,91 @@ function updateLive(){
    ========================================================= */
 var raf = null, lastT = 0, lastSlow = 0;
 function loop(ts){
-  if(state.mode !== "virtual" || $("lab").hidden){ raf = null; return; }
+  if(state.mode !== "virtual" || $("lab").hidden){ raf = null; updateSound(true); return; }
   var dt = lastT ? Math.min((ts - lastT)/1000, 0.1) : 0.016;
   lastT = ts;
   if(sim){
     acc += dt;
     var count = 0;
     while(acc >= sim.h && count < 600){ stepOnce(sim.h); acc -= sim.h; count++; }
+    sim.slow = count >= 600;
     if(count >= 600) acc = 0;
   }
   updateMeters(false);
   if(ts - lastSlow > 100){
     lastSlow = ts;
     if(!ui.drag) renderBoard();
-    drawScopes(); updateMeters(true); renderWarns(); updateLive();
+    drawScopes(); updateMeters(true); renderWarns(); updateLive(); updateSound();
     if(propsDirty) renderProps(); else updatePropsLive();
   }
   raf = requestAnimationFrame(loop);
+}
+/* ---------- 파형 담기 ---------- */
+var WAVE_MAX = 6, WAVE_PTS = 200;
+function captureWave(p){
+  var r = rt[p.id], bf = r && r.buf, q = p.p;
+  if(!bf || !bf.n){ toast("아직 담을 파형이 없습니다"); return; }
+  if(state.waves.length >= WAVE_MAX){ toast("파형은 " + WAVE_MAX + "개까지 담을 수 있습니다. 필요 없는 파형을 지워 주세요"); return; }
+  var Wt = q.tdiv*10, tEnd = bf.last, idx = [];
+  for(var j=0;j<bf.n;j++){
+    var ix = (bf.head - 1 - j + SCOPE_LEN) % SCOPE_LEN;
+    if(bf.t[ix] < tEnd - Wt) break;
+    idx.push(ix);
+  }
+  idx.reverse();
+  if(idx.length < 2){ toast("파형이 너무 짧습니다. 잠시 뒤 다시 눌러 주세요"); return; }
+  function pick(arr, on){
+    if(!on) return null;
+    var out = [];
+    for(var k=0;k<WAVE_PTS;k++){
+      var v = arr[idx[Math.round(k*(idx.length-1)/(WAVE_PTS-1))]];
+      out.push(isNaN(v) ? null : Math.round(v*1000)/1000);
+    }
+    return out.some(function(v){ return v !== null; }) ? out : null;
+  }
+  var label = (ui.lastPreset || "파형") + " " + (state.waves.length + 1);
+  state.waves.push({ label:label, tdiv:q.tdiv, vdiv:q.vdiv, ch:[pick(bf.a, true), pick(bf.b, true), pick(bf.c, q.src)] });
+  renderWaves();
+  toast("파형을 담았습니다. 제출할 때 함께 보내집니다");
+}
+function renderWaves(){
+  var n = state.waves.length;
+  $("waves-wrap").hidden = n === 0;
+  $("waves-count").textContent = n + " / " + WAVE_MAX;
+  $("waves").innerHTML = state.waves.map(function(wv, k){
+    return '<div class="card scope-card wave-card"><input type="text" data-wlabel="'+k+'" value="'+esc(wv.label)+'" aria-label="파형 이름">'
+         + waveSVG(wv) + '<div class="prow"><button class="btn ghost slim" type="button" data-act="wvdel" data-w="'+k+'">지우기</button></div></div>';
+  }).join("");
+}
+$("waves").addEventListener("change", function(e){
+  var k = e.target.getAttribute("data-wlabel");
+  if(k !== null && state.waves[+k]) state.waves[+k].label = e.target.value.slice(0, 60);
+});
+
+/* ---------- 스피커 소리 ---------- */
+var audio = { ctx:null, osc:null, gain:null };
+function soundOn(){
+  try{
+    if(!audio.ctx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return false;
+      audio.ctx = new AC(); audio.osc = audio.ctx.createOscillator(); audio.gain = audio.ctx.createGain();
+      audio.gain.gain.value = 0; audio.osc.connect(audio.gain); audio.gain.connect(audio.ctx.destination); audio.osc.start();
+    }
+    audio.ctx.resume();
+    return true;
+  }catch(e){ return false; }
+}
+function updateSound(mute){
+  if(!audio.ctx) return;
+  var amp = 0, f = 0;
+  if(!mute) circuit.parts.forEach(function(p){
+    if(p.type === "spk" && p.p.sound && rt[p.id]) amp = Math.max(amp, (rt[p.id].amp || 0)*8);
+    if(p.type === "ac" && p.p.mode === "sine") f = Math.max(f, p.p.f);
+  });
+  var g = f >= 20 ? clamp(amp/4, 0, 1)*0.3 : 0, now = audio.ctx.currentTime;
+  audio.osc.frequency.setTargetAtTime(clamp(f || 440, 20, 8000), now, 0.02);
+  audio.gain.gain.setTargetAtTime(g, now, 0.05);
 }
 function startLoop(){ if(!raf){ lastT = 0; raf = requestAnimationFrame(loop); } }
 
@@ -1636,9 +2199,6 @@ function setMode(m){
   $("tab-real").setAttribute("aria-selected", m === "real");
   $("tab-virtual").setAttribute("aria-selected", m === "virtual");
   $("vpanel").hidden = m !== "virtual";
-  $("tbl-desc").textContent = m === "virtual"
-    ? "회로를 꾸민 뒤 계기의 바늘을 읽어 한 줄씩 적습니다. 전류계 단자가 50·500 mA면 mA 눈금, 5 A면 A 눈금이에요."
-    : "회로에 걸린 전압과 그때 흐른 전류를 한 줄씩 적습니다.";
   drawRows();
   if(m === "virtual"){ applyStart(); instKey = ""; edited(); startLoop(); }
 }
@@ -1654,7 +2214,7 @@ function toast(msg){
    12. 입장 / 저장 / 제출
    ========================================================= */
 function serialCircuit(){
-  return { parts: circuit.parts.map(function(p){ return { id:p.id, type:p.type, x:p.x, y:p.y, rot:p.rot||0, p:JSON.parse(JSON.stringify(p.p)) }; }),
+  return { ver:2, parts: circuit.parts.map(function(p){ return { id:p.id, type:p.type, x:p.x, y:p.y, rot:p.rot||0, p:JSON.parse(JSON.stringify(p.p)) }; }),
            wires: circuit.wires.map(function(w){ return { id:w.id, a:{pid:w.a.pid, t:w.a.t}, b:{pid:w.b.pid, t:w.b.t}, flip:!!w.flip }; }) };
 }
 function summaryText(){
@@ -1668,21 +2228,38 @@ function summaryText(){
   return order.map(function(n){ return count[n] > 1 ? n + " ×" + count[n] : n; }).join(", ") + ", 도선 " + circuit.wires.length + "개";
 }
 function vSetup(){
-  return { circuit:serialCircuit(), summary:summaryText(), revealed:vs.revealed, factors:copyFactors(vs.factors), chosen:vs.chosen };
+  var c = serialCircuit();
+  c.tables = { fi: pairs(state.frows), lv: pairs(state.lrows), tr: pairs(state.trows), trp: state.trp };   // 실험별 기록표
+  return { circuit:c, summary:summaryText(), revealed:vs.revealed, factors:copyFactors(vs.factors), chosen:vs.chosen };
 }
 function restoreCircuit(c){
   circuit = { parts:[], wires:[] }; rt = {}; nextId = 1;
   if(!c || !c.parts) return;
+  var oldScope = {};
   c.parts.forEach(function(p){
     if(!DEFS[p.type]) return;
     var q = JSON.parse(JSON.stringify(DEFS[p.type].def));
     for(var k in p.p) q[k] = p.p[k];
+    // 예전 버전에서 저장한 회로 고치기
+    if(p.type === "ac" && p.p.vp !== undefined && p.p.mode === undefined){ q.mode = "sine"; q.v = p.p.vp; delete q.vp; }
+    if(p.type === "scope" && !c.ver) oldScope[p.id] = true;
     circuit.parts.push({ id:p.id, type:p.type, x:p.x, y:p.y, rot:p.rot||0, p:q });
     nextId = Math.max(nextId, p.id + 1);
   });
+  var extra = [];
   (c.wires || []).forEach(function(w){
-    if(partById(w.a.pid) && partById(w.b.pid)){ circuit.wires.push({ id:w.id, a:w.a, b:w.b, flip:!!w.flip }); nextId = Math.max(nextId, w.id + 1); }
+    if(!(partById(w.a.pid) && partById(w.b.pid))) return;
+    var a = { pid:w.a.pid, t:w.a.t }, b = { pid:w.b.pid, t:w.b.t };
+    // 예전 오실로스코프: 0=CH1, 1=CH2, 2=공통 → 지금: 0=1+, 1=1−, 2=2+, 3=2−
+    [a, b].forEach(function(e){
+      if(oldScope[e.pid]){
+        if(e.t === 1) e.t = 2;
+        else if(e.t === 2){ e.t = 1; extra.push([e === a ? b : a, { pid:e.pid, t:3 }]); }
+      }
+    });
+    circuit.wires.push({ id:w.id, a:a, b:b, flip:!!w.flip }); nextId = Math.max(nextId, w.id + 1);
   });
+  extra.forEach(function(x){ circuit.wires.push({ id:nextId++, a:{pid:x[0].pid, t:x[0].t}, b:x[1], flip:false }); });
   circuit.parts.forEach(ensureRt);
 }
 
@@ -1692,13 +2269,21 @@ $("enter").addEventListener("click", function(){
   state.student = { cls:cls||"-", no:no||"-", name:nm };
   var saved = loadAll()[studentKey(state.student)];
   ui.sel = null; ui.selWire = null; ui.pending = null;
-  vs.revealed = false; vs.factors = copyFactors(HIDDEN_FACTORS); vs.chosen = false;
+  vs.revealed = false; vs.factors = copyFactors(HIDDEN_FACTORS); vs.chosen = false; vs.presetOk = false;
+  state.frows = blankRows(5); state.lrows = blankRows(4); state.trows = blankRows(3); state.vkind = "vi";
+  state.trp = { rb:22, rc:0.33, vbe:0.6 }; state.waves = []; ui.lastPreset = null;
   restoreCircuit(null);
   if(saved){
     state.rows  = saved.rows && saved.rows.length ? saved.rows : blankRows(5);
     state.vrows = saved.vrows && saved.vrows.length ? saved.vrows : blankRows(5);
     state.unitA = !!saved.unitA; state.swap = !!saved.swap; state.origin = saved.origin !== false;
     state.mode  = saved.mode === "virtual" ? "virtual" : "real";
+    if(saved.frows && saved.frows.length) state.frows = saved.frows;
+    if(saved.lrows && saved.lrows.length) state.lrows = saved.lrows;
+    if(saved.trows && saved.trows.length) state.trows = saved.trows;
+    if(saved.trp) state.trp = saved.trp;
+    if(saved.waves) state.waves = saved.waves;
+    if(KINDS[saved.vkind]) state.vkind = saved.vkind;
     if(saved.v){
       vs.revealed = !!saved.v.revealed;
       vs.factors = saved.v.factors ? copyFactors(saved.v.factors) : copyFactors(HIDDEN_FACTORS);
@@ -1709,15 +2294,14 @@ $("enter").addEventListener("click", function(){
   }else{ state.rows = blankRows(5); state.vrows = blankRows(5); }
 
   $("unit-a").checked = state.unitA; $("swap").checked = state.swap; $("origin").checked = state.origin;
-  $("th-i").textContent = "전류 (" + (state.unitA?"A":"mA") + ")";
   $("who").innerHTML = esc(state.student.cls) + "반 " + esc(state.student.no) + "번 <b>" + esc(state.student.name) + "</b>";
-  show("lab"); renderReveal(); setMode(state.mode);
+  show("lab"); renderReveal(); renderWaves(); setMode(state.mode);
 });
 
 $("add-row").addEventListener("click", function(){ activeRows().push({v:"",i:""}); drawRows(); });
 $("clear").addEventListener("click", function(){ setActiveRows(blankRows(5)); drawRows(); });
 $("unit-a").addEventListener("change", function(e){
-  state.unitA = e.target.checked; $("th-i").textContent = "전류 (" + (state.unitA?"A":"mA") + ")"; refreshCalc();
+  state.unitA = e.target.checked; updateHeaders(); refreshCalc();
 });
 $("swap").addEventListener("change", function(e){ state.swap = e.target.checked; drawPlot(); });
 $("origin").addEventListener("change", function(e){ state.origin = e.target.checked; drawPlot(); });
@@ -1739,7 +2323,8 @@ function payloadOf(entry){
     virtual: {
       rows: cleanRows(entry.vrows, entry.unitA), R:entry.vR, r2:entry.vr2, n:entry.vn,
       setup: { summary:v.summary || "", revealed:!!v.revealed, factors:v.factors || null },
-      circuit: v.circuit || null
+      circuit: v.circuit || null,
+      waves: entry.waves || []
     },
     at: entry.at
   };
@@ -1748,7 +2333,7 @@ function status(msg){ $("save-status").textContent = msg || ""; }
 function makeEntry(){
   var dR = analyse(state.rows), dV = analyse(state.vrows);
   return {
-    student:state.student, rows:state.rows, vrows:state.vrows, mode:state.mode,
+    student:state.student, rows:state.rows, vrows:state.vrows, frows:state.frows, lrows:state.lrows, trows:state.trows, trp:state.trp, waves:state.waves, vkind:state.vkind, mode:state.mode,
     unitA:state.unitA, swap:state.swap, origin:state.origin,
     R:dR.R, r2:dR.fit ? dR.fit.r2 : null, n:dR.n,
     vR:dV.R, vr2:dV.fit ? dV.fit.r2 : null, vn:dV.n,
@@ -1766,7 +2351,7 @@ $("save").addEventListener("click", function(){
 $("submit").addEventListener("click", function(){
   if(!SERVER_URL){ toast("제출 주소가 아직 설정되지 않았습니다. 선생님께 알려 주세요"); return; }
   var entry = makeEntry();
-  if(entry.n + entry.vn === 0){ toast("제출할 측정값이 없습니다"); return; }
+  if(entry.n + entry.vn + pairs(state.frows).length + pairs(state.lrows).length + pairs(state.trows).length + state.waves.length === 0){ toast("제출할 측정값이 없습니다"); return; }
   if(!confirm("지금 기록과 회로를 선생님께 제출할까요?\n다시 제출하면 가장 최근 값으로 바뀝니다.")) return;
   storeEntry(entry);
   var btn = $("submit"); btn.disabled = true; status("제출하는 중…");
@@ -1820,6 +2405,9 @@ function drawBoardList(){
        + '<td class="del"><button type="button" data-k="'+k+'" aria-label="기록 지우기">×</button></td></tr>';
     cleanRows(e.rows, e.unitA).forEach(function(r, j){ csv += s.cls+","+s.no+","+s.name+",실측,"+r.v+","+r.i+"\n"; });
     cleanRows(e.vrows, e.unitA).forEach(function(r){ csv += s.cls+","+s.no+","+s.name+",가상,"+r.v+","+r.i+"\n"; });
+    pairs(e.frows).forEach(function(r){ csv += s.cls+","+s.no+","+s.name+",공진(진동수 Hz / 전류 mA),"+r[0]+","+r[1]+"\n"; });
+    pairs(e.trows).forEach(function(r){ csv += s.cls+","+s.no+","+s.name+",트랜지스터(입력 V / 출력 V),"+r[0]+","+r[1]+"\n"; });
+    pairs(e.lrows).forEach(function(r){ csv += s.cls+","+s.no+","+s.name+",플랑크(파장 nm / 문턱 전압 V),"+r[0]+","+r[1]+"\n"; });
   });
   h += '</tbody></table></div><h2 style="margin-top:32px">표로 옮길 때 쓰는 값</h2>'
      + '<p class="muted">아래 내용을 모두 선택해 복사한 뒤, 엑셀이나 한셀에 붙여 넣으면 표가 됩니다.</p><textarea readonly id="csv"></textarea>';
