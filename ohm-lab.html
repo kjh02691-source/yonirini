@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>옴의 법칙 실험실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F2F4F1;
+  --card:#FFFFFF;
+  --ink:#1B2A24;
+  --ink-soft:#5E6F67;
+  --rule:#CBD6CE;
+  --grid:#DEE6E0;
+  --copper:#B0642B;
+  --copper-soft:#EADACB;
+  --blue:#2B5A86;
+  --focus:#2B5A86;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#141816;
+    --card:#1C2220;
+    --ink:#E6EDE8;
+    --ink-soft:#9AAAA2;
+    --rule:#2E3835;
+    --grid:#28322E;
+    --copper:#D98C4A;
+    --copper-soft:#3A2B1E;
+    --blue:#7FB0DA;
+    --focus:#7FB0DA;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141816; --card:#1C2220; --ink:#E6EDE8; --ink-soft:#9AAAA2;
+  --rule:#2E3835; --grid:#28322E; --copper:#D98C4A; --copper-soft:#3A2B1E;
+  --blue:#7FB0DA; --focus:#7FB0DA;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans KR",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  font-size:15px;
+  line-height:1.65;
+  -webkit-text-size-adjust:100%;
+}
+.num{font-family:"IBM Plex Mono","IBM Plex Sans KR",monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 64px}
+h1,h2,h3{margin:0;font-weight:600;line-height:1.3}
+h1{font-size:1.5rem;letter-spacing:-.01em}
+h2{font-size:1.05rem}
+p{margin:.4em 0}
+.muted{color:var(--ink-soft);font-size:.86rem}
+button{font:inherit;cursor:pointer}
+input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* ---------- 입장 화면 ---------- */
+#gate{min-height:100svh;display:grid;place-items:center;padding:24px}
+.gate-box{width:100%;max-width:420px}
+.circuit{width:100%;height:auto;margin-bottom:26px;display:block}
+.gate-box h1{margin-bottom:6px}
+.gate-box .lede{color:var(--ink-soft);margin:0 0 26px;font-size:.92rem}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.8rem;color:var(--ink-soft);margin-bottom:5px}
+.field input{
+  width:100%;padding:10px 12px;background:var(--card);
+  border:1px solid var(--rule);border-radius:6px;
+}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{
+  width:100%;padding:11px 16px;border:1px solid var(--copper);
+  background:var(--copper);color:#fff;border-radius:6px;font-weight:500;
+}
+:root[data-theme="dark"] .btn, :root:not([data-theme="light"]) .btn{color:#14100B}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .btn{color:#fff}}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn.slim{width:auto;padding:7px 13px;font-size:.87rem}
+
+/* ---------- 실험 화면 ---------- */
+.topbar{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;
+  justify-content:space-between;border-bottom:1px solid var(--rule);
+  padding-bottom:14px;margin-bottom:18px;
+}
+.who{font-size:.9rem;color:var(--ink-soft)}
+.who b{color:var(--ink);font-weight:500}
+.cols{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:760px){.cols{grid-template-columns:1fr}}
+
+/* 탭 */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--rule);margin-bottom:24px}
+.tab{
+  border:0;background:transparent;color:var(--ink-soft);
+  padding:10px 16px;margin-bottom:-1px;border-bottom:2px solid transparent;font-weight:500;
+}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--copper)}
+
+table{border-collapse:collapse;width:100%}
+th,td{padding:0;text-align:left}
+thead th{
+  font-size:.76rem;font-weight:500;color:var(--ink-soft);
+  padding:0 6px 6px;border-bottom:1px solid var(--rule);
+}
+tbody td{border-bottom:1px solid var(--grid);padding:2px 0}
+tbody input{
+  width:100%;padding:8px 6px;background:transparent;border:0;
+  border-radius:4px;text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+tbody input:focus{background:var(--card)}
+td.calc{
+  padding-right:6px;text-align:right;color:var(--ink-soft);font-size:.85rem;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+td.del{width:26px;text-align:center}
+.del button{
+  border:0;background:transparent;color:var(--ink-soft);
+  padding:4px 6px;border-radius:4px;line-height:1;
+}
+.del button:hover{color:var(--copper)}
+.tbl-foot{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+.opts{margin-top:22px;padding-top:16px;border-top:1px solid var(--rule);display:grid;gap:9px}
+.opt{display:flex;align-items:center;gap:8px;font-size:.87rem}
+
+/* ---------- 그래프 ---------- */
+.chart-card{background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:14px}
+svg.plot{width:100%;height:auto;display:block}
+.readout{
+  margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:2px;
+  border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--rule)
+}
+.cell{background:var(--card);padding:12px 14px}
+.cell .k{font-size:.76rem;color:var(--ink-soft)}
+.cell .v{font-size:1.12rem;font-weight:500;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.verdict{margin-top:14px;font-size:.9rem;padding:11px 14px;border-radius:8px;background:var(--copper-soft);color:var(--ink)}
+.actions{display:flex;gap:8px;margin-top:22px;flex-wrap:wrap;align-items:center}
+.hint{margin-top:10px}
+
+/* ---------- 가상 실험 장치 ---------- */
+.vgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,310px);gap:20px;align-items:start;margin-bottom:32px}
+@media (max-width:880px){.vgrid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:14px}
+svg.rig{width:100%;height:auto;display:block}
+.meters{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+@media (max-width:520px){.meters{grid-template-columns:1fr}}
+svg.meter{width:100%;height:auto;display:block}
+.meter-cap{font-size:.8rem;color:var(--ink-soft);margin-top:6px;text-align:center}
+.ctl{margin-bottom:16px}
+.ctl .lab{display:block;font-size:.78rem;color:var(--ink-soft);margin-bottom:6px}
+.ctl .lab b{color:var(--ink);font-weight:500}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{
+  border:1px solid var(--rule);background:transparent;color:var(--ink);
+  padding:6px 10px;border-radius:6px;font-size:.85rem;
+}
+.seg button[aria-pressed="true"]{background:var(--copper-soft);border-color:var(--copper)}
+.stepper{display:flex;align-items:center;gap:10px}
+.stepper button{
+  width:34px;height:34px;border:1px solid var(--rule);background:transparent;
+  color:var(--ink);border-radius:6px;font-size:1.1rem;line-height:1;
+}
+.stepper .num{min-width:2.6em;text-align:center;font-weight:500}
+input[type=range]{width:100%;accent-color:var(--copper)}
+.vstatus{font-size:.86rem;margin-top:12px;color:var(--ink-soft)}
+.vstatus.warn{color:var(--copper)}
+.vstatus button{margin-left:6px}
+.reveal{margin-top:16px}
+.reveal h2{margin-bottom:4px}
+.factor{border-top:1px solid var(--grid);padding:12px 0 6px;margin-top:8px}
+.factor .opt b{font-weight:500}
+.live{font-family:"IBM Plex Mono","IBM Plex Sans KR",monospace;font-size:.78rem;color:var(--ink);margin:.3em 0 0}
+.pin-row{display:flex;gap:8px;margin-top:12px}
+.pin-row input{
+  flex:1;min-width:0;padding:8px 10px;background:var(--paper);
+  border:1px solid var(--rule);border-radius:6px;
+}
+[data-act="switch"]{cursor:pointer}
+
+/* ---------- 결과 모음 ---------- */
+.board table{margin-top:14px}
+.board tbody td{padding:9px 6px;font-size:.9rem;border-bottom:1px solid var(--grid)}
+.board td.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.tbl-scroll{overflow-x:auto}
+textarea{
+  width:100%;min-height:160px;margin-top:14px;padding:12px;background:var(--card);
+  color:inherit;border:1px solid var(--rule);border-radius:6px;
+  font-family:"IBM Plex Mono",monospace;font-size:.82rem;line-height:1.7;
+}
+.empty{padding:28px 0;color:var(--ink-soft)}
+.toast{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+  background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;
+  font-size:.88rem;opacity:0;pointer-events:none;transition:opacity .2s;z-index:10
+}
+.toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ======== 1. 입장 화면 ======== -->
+<section id="gate" class="screen">
+  <div class="gate-box">
+    <svg class="circuit" viewBox="0 0 320 96" fill="none" aria-hidden="true">
+      <g stroke="var(--copper)" stroke-width="2" stroke-linecap="round">
+        <path d="M18 70 L18 34 M18 34 L108 34"/>
+        <path d="M148 34 L214 34"/>
+        <path d="M254 34 L302 34 L302 70 L18 70"/>
+        <path d="M108 20 L108 48 M120 12 L120 56 M132 20 L132 48 M144 12 L144 56"/>
+        <rect x="214" y="22" width="40" height="24" rx="2"/>
+      </g>
+      <circle cx="160" cy="70" r="15" fill="var(--card)" stroke="var(--copper)" stroke-width="2"/>
+      <text x="160" y="76" text-anchor="middle" font-size="15" font-family="IBM Plex Mono, monospace" fill="var(--copper)">A</text>
+      <text x="234" y="16" text-anchor="middle" font-size="12" font-family="IBM Plex Mono, monospace" fill="var(--ink-soft)">R</text>
+    </svg>
+    <h1>옴의 법칙 실험실</h1>
+    <p class="lede">직접 잰 전압과 전류를 넣거나, 가상 실험 장치로 측정해 보세요. 그래프의 기울기에서 저항을 구합니다.</p>
+    <div class="row2">
+      <div class="field"><label for="g-cls">반</label><input id="g-cls" inputmode="numeric" placeholder="3"></div>
+      <div class="field"><label for="g-no">번호</label><input id="g-no" inputmode="numeric" placeholder="14"></div>
+    </div>
+    <div class="field"><label for="g-name">이름</label><input id="g-name" placeholder="홍길동"></div>
+    <button class="btn" id="enter">실험 시작하기</button>
+    <p class="muted hint">저장한 기록은 이 기기에 남습니다. 같은 반·번호·이름으로 다시 들어오면 이어서 할 수 있어요.</p>
+    <p class="muted hint"><button class="btn ghost slim" id="go-board">저장된 기록 모아 보기</button></p>
+  </div>
+</section>
+
+<!-- ======== 2. 실험 화면 ======== -->
+<section id="lab" class="screen wrap" hidden>
+  <div class="topbar">
+    <div>
+      <h1>옴의 법칙 실험실</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost slim" id="to-board">기록 모아 보기</button>
+      <button class="btn ghost slim" id="leave">나가기</button>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-real" data-mode="real">실측값 입력</button>
+    <button class="tab" role="tab" id="tab-virtual" data-mode="virtual">가상 실험</button>
+  </div>
+
+  <!-- ---- 가상 실험 장치 (가상 실험 탭에서만 보임) ---- -->
+  <div id="vpanel" hidden>
+    <div class="vgrid">
+      <div>
+        <div class="card">
+          <svg class="rig" id="rig" viewBox="0 0 640 290" role="img" aria-label="실험 장치 그림">
+            <defs>
+              <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>
+            </defs>
+            <g id="rig-static"></g>
+            <g id="rig-dyn"></g>
+          </svg>
+        </div>
+        <div class="meters">
+          <div class="card">
+            <svg class="meter" id="vm" viewBox="0 0 300 196" role="img" aria-label="전압계"></svg>
+            <div class="meter-cap">전압계 · 소자 양 끝에 연결</div>
+          </div>
+          <div class="card">
+            <svg class="meter" id="am" viewBox="0 0 300 196" role="img" aria-label="전류계"></svg>
+            <div class="meter-cap">전류계 · 회로에 직렬로 연결</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="ctl">
+            <span class="lab">전원: 건전지 개수</span>
+            <div class="stepper">
+              <button type="button" id="cell-minus" aria-label="건전지 하나 빼기">−</button>
+              <span class="num" id="cell-n">2개</span>
+              <button type="button" id="cell-plus" aria-label="건전지 하나 더하기">+</button>
+              <span class="muted" id="cell-v"></span>
+            </div>
+          </div>
+          <div class="ctl">
+            <span class="lab">소자</span>
+            <div class="seg" id="seg-el"></div>
+          </div>
+          <div class="ctl" id="ctl-r">
+            <span class="lab">저항값</span>
+            <div class="seg" id="seg-r"></div>
+          </div>
+          <div class="ctl" id="ctl-n" hidden>
+            <span class="lab">니크롬선 길이 <b id="len-v">50 cm</b></span>
+            <input type="range" id="len" min="10" max="100" step="10" value="50" aria-label="니크롬선 길이">
+            <span class="lab" style="margin-top:10px">굵기 (지름)</span>
+            <div class="seg" id="seg-d"></div>
+          </div>
+          <div class="ctl">
+            <span class="lab">연결</span>
+            <div class="seg" id="seg-c"></div>
+          </div>
+          <div class="ctl">
+            <span class="lab">전압계 단자</span>
+            <div class="seg" id="seg-vr"></div>
+          </div>
+          <div class="ctl">
+            <span class="lab">전류계 단자</span>
+            <div class="seg" id="seg-ar"></div>
+          </div>
+          <button type="button" class="btn" id="sw-btn">스위치 켜기</button>
+          <p class="vstatus" id="vstatus" aria-live="polite"></p>
+        </div>
+
+        <div class="card reveal" id="reveal"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---- 표 + 그래프 (두 탭 공통) ---- -->
+  <div class="cols">
+    <div>
+      <h2>측정값</h2>
+      <p class="muted" id="tbl-desc">회로에 걸린 전압과 그때 흐른 전류를 한 줄씩 적습니다.</p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:38%">전압 (V)</th>
+            <th style="width:38%" id="th-i">전류 (mA)</th>
+            <th style="width:24%;text-align:right">V / I</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="tbl-foot">
+        <button class="btn ghost slim" id="add-row">줄 추가</button>
+        <button class="btn ghost slim" id="clear">모두 지우기</button>
+      </div>
+
+      <div class="opts">
+        <label class="opt"><input type="checkbox" id="unit-a"> 전류를 A(암페어) 단위로 입력</label>
+        <label class="opt"><input type="checkbox" id="swap"> 가로축을 전류로 바꾸기</label>
+        <label class="opt"><input type="checkbox" id="origin" checked> 직선이 원점을 지나게 하기</label>
+      </div>
+
+      <div class="actions">
+        <button class="btn ghost slim" id="save">이 기기에 저장</button>
+        <button class="btn slim" id="submit">선생님께 제출</button>
+        <span class="muted" id="save-status" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div>
+      <div class="chart-card">
+        <svg class="plot" id="plot" viewBox="0 0 520 380" role="img" aria-label="전압과 전류 그래프"></svg>
+      </div>
+      <div class="readout" id="readout"></div>
+      <div class="verdict" id="verdict" hidden></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======== 3. 기록 모아 보기 ======== -->
+<section id="board" class="screen wrap board" hidden>
+  <div class="topbar">
+    <h1>저장된 기록</h1>
+    <button class="btn ghost slim" id="board-back">돌아가기</button>
+  </div>
+  <div id="board-body"></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   0-가. 서버 설정 — 여기 두 줄만 바꾸면 됩니다
+   ---------------------------------------------------------
+   SERVER_URL : Apps Script를 배포하고 받은 웹 앱 주소
+                비워 두면 서버 없이 이 기기에만 저장합니다.
+   CLASS_KEY  : Apps Script에 적어 둔 암호와 똑같이 맞춥니다.
+   ========================================================= */
+var SERVER_URL = "https://script.google.com/macros/s/AKfycbwMqnIRXm69hvR2Q2Q5k3hjYlzvdA7DyTUxOd7bFpZjwyw8M-BvY45K0fJGdIfTTyrL/exec";
+var CLASS_KEY  = "";
+
+/* =========================================================
+   0-나. 가상 실험 설정 — 선생님이 바꾸는 곳
+   ---------------------------------------------------------
+   TEACHER_PIN    : 숨겨진 요인을 공개할 때 학생에게 알려 줄 암호
+   HIDDEN_FACTORS : 처음에 몰래 켜 둘 요인 (true = 켜짐)
+     heat    발열 — 온도가 오르면 저항이 커짐
+     battery 건전지 내부저항
+     meter   전류계·전압계 내부저항
+     wire    도선·집게 저항
+   ========================================================= */
+var TEACHER_PIN = "1234";
+var HIDDEN_FACTORS = { heat:true, battery:true, meter:true, wire:true };
+
+// 실험 장치의 물리 값 — 바꾸면 결과가 달라집니다
+var PHYS = {
+  T0: 20,              // 실온 (°C)
+  cellEmf: 1.5,        // 건전지 1개의 표시 전압 (V)
+  cellR: 0.4,          // 건전지 1개의 내부저항 (Ω)
+  wireR: 0.3,          // 도선·집게 전체 저항 (Ω)
+  voltOhmPerVolt: 1000,// 전압계 내부저항: 단자 1 V당 1 kΩ
+  ammBurden: 0.1       // 전류계: 끝눈금 전류에서 0.1 V가 걸림
+};
+var RES_VALUES = [10, 22, 47, 100];
+
+function $(id){ return document.getElementById(id); }
+
+// 서버로 한 명분 기록을 보냅니다. 성공하면 true를 돌려줍니다.
+function sendToServer(payload){
+  if(!SERVER_URL) return Promise.resolve(false);
+  return fetch(SERVER_URL, {
+    method: "POST",
+    // text/plain으로 보내야 구글 서버가 중간 확인 절차 없이 바로 받습니다.
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  })
+  .then(function(res){ return res.json(); })
+  .then(function(out){
+    if(!out || !out.ok) throw new Error(out && out.error ? out.error : "서버가 거절했습니다");
+    return true;
+  });
+}
+
+/* =========================================================
+   0-다. 저장소 — 브라우저에 데이터를 남기는 아주 얇은 도구
+   ========================================================= */
+var KEY = "ohmlab.v1";
+
+function loadAll(){
+  try{
+    var raw = localStorage.getItem(KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+function saveAll(obj){
+  try{ localStorage.setItem(KEY, JSON.stringify(obj)); return true; }
+  catch(e){ return false; }
+}
+
+/* =========================================================
+   1. 상태 — 화면이 기억해야 할 값들
+   ========================================================= */
+var state = {
+  student: null,          // {cls, no, name}
+  mode: "real",           // "real" 실측 입력, "virtual" 가상 실험
+  rows: [],               // 실측 표 [{v:"", i:""}]
+  vrows: [],              // 가상 실험 표
+  unitA: false,           // true면 전류를 A로 입력
+  swap: false,            // true면 가로축이 전류
+  origin: true            // true면 원점을 지나는 직선
+};
+
+// 가상 실험 장치의 상태
+var vs = {
+  cells: 2, element: "resistor", rValue: 47, len: 50, dia: 0.3, conn: "single",
+  vRange: 15, aRange: 0.5, on: false,
+  T: PHYS.T0, broken: false,
+  factors: copyFactors(HIDDEN_FACTORS), revealed: false, theory: true,
+  needleV: 0, needleA: 0, last: null
+};
+function copyFactors(f){ return { heat:!!f.heat, battery:!!f.battery, meter:!!f.meter, wire:!!f.wire }; }
+
+function blankRows(n){
+  var a = [];
+  for(var k=0;k<n;k++) a.push({v:"", i:""});
+  return a;
+}
+function studentKey(s){ return s.cls + "-" + s.no + "-" + s.name; }
+function activeRows(){ return state.mode === "virtual" ? state.vrows : state.rows; }
+function setActiveRows(a){ if(state.mode === "virtual") state.vrows = a; else state.rows = a; }
+
+/* =========================================================
+   2. 계산 — 최소제곱법과 저항
+   ========================================================= */
+// 유효한 (전압, 전류) 쌍만 골라 낸다. 전류는 항상 A 단위로 환산.
+function points(rows){
+  var out = [];
+  for(var k=0;k<rows.length;k++){
+    var v = parseFloat(rows[k].v), i = parseFloat(rows[k].i);
+    if(isFinite(v) && isFinite(i)){
+      out.push({ v:v, i: state.unitA ? i : i/1000 });
+    }
+  }
+  return out;
+}
+
+// y = a·x + b 를 찾는다. origin이 true면 b = 0 으로 고정.
+function fit(xs, ys, throughOrigin){
+  var n = xs.length, k;
+  if(n < 2) return null;
+  var a, b;
+  if(throughOrigin){
+    var sxy=0, sxx=0;
+    for(k=0;k<n;k++){ sxy += xs[k]*ys[k]; sxx += xs[k]*xs[k]; }
+    if(sxx === 0) return null;
+    a = sxy/sxx; b = 0;
+  }else{
+    var sx=0, sy=0, sxy2=0, sxx2=0;
+    for(k=0;k<n;k++){ sx+=xs[k]; sy+=ys[k]; sxy2+=xs[k]*ys[k]; sxx2+=xs[k]*xs[k]; }
+    var den = n*sxx2 - sx*sx;
+    if(den === 0) return null;
+    a = (n*sxy2 - sx*sy)/den;
+    b = (sy - a*sx)/n;
+  }
+  var my=0; for(k=0;k<n;k++) my += ys[k]; my/=n;
+  var ssRes=0, ssTot=0;
+  for(k=0;k<n;k++){
+    var d = ys[k] - (a*xs[k]+b);
+    ssRes += d*d;
+    ssTot += (ys[k]-my)*(ys[k]-my);
+  }
+  var r2 = ssTot === 0 ? 1 : 1 - ssRes/ssTot;
+  return { a:a, b:b, r2:r2 };
+}
+
+function analyse(rows){
+  var p = points(rows || activeRows());
+  var iScale = state.unitA ? 1 : 1000;
+  var iUnit  = state.unitA ? "A" : "mA";
+  var xs = [], ys = [], k;
+
+  for(k=0;k<p.length;k++){
+    if(state.swap){ xs.push(p[k].i*iScale); ys.push(p[k].v); }
+    else          { xs.push(p[k].v);        ys.push(p[k].i*iScale); }
+  }
+
+  var f = fit(xs, ys, state.origin);
+  var R = null;
+  if(f && f.a !== 0){
+    R = state.swap ? (f.a * iScale) : (1 / (f.a / iScale));
+    if(!isFinite(R)) R = null;
+  }
+  return {
+    xs:xs, ys:ys, fit:f, R:R, n:p.length,
+    xLabel: state.swap ? ("전류 (" + iUnit + ")") : "전압 (V)",
+    yLabel: state.swap ? "전압 (V)" : ("전류 (" + iUnit + ")")
+  };
+}
+
+function fmt(x, digits){
+  if(x === null || x === undefined || !isFinite(x)) return "—";
+  var ax = Math.abs(x);
+  if(ax !== 0 && (ax >= 100000 || ax < 0.001)) return x.toExponential(2);
+  var t = x.toFixed(digits === undefined ? 3 : digits);
+  if(t.indexOf(".") >= 0) t = t.replace(/\.?0+$/,"");
+  return t === "-0" ? "0" : t;
+}
+
+/* =========================================================
+   3. 그래프 그리기
+   ========================================================= */
+var PAD = { l:62, r:18, t:18, b:52 }, W = 520, H = 380;
+
+function niceStep(range, targetTicks){
+  if(range <= 0) return 1;
+  var raw = range/targetTicks;
+  var mag = Math.pow(10, Math.floor(Math.log(raw)/Math.LN10));
+  var norm = raw/mag;
+  var step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return step*mag;
+}
+
+// 공개 후 가상 실험에서만: 20 °C, 이상적인 장치일 때의 저항
+function theoryR(){
+  if(state.mode !== "virtual" || !vs.revealed || !vs.theory || vs.element === "lamp") return null;
+  var R0 = elem().R0;
+  return vs.conn === "series" ? 2*R0 : vs.conn === "parallel" ? R0/2 : R0;
+}
+
+function drawPlot(){
+  var d = analyse();
+  var svg = $("plot");
+  var xMax = 1, yMax = 1, k;
+  for(k=0;k<d.xs.length;k++) if(d.xs[k] > xMax) xMax = d.xs[k];
+  for(k=0;k<d.ys.length;k++) if(d.ys[k] > yMax) yMax = d.ys[k];
+  xMax *= 1.12; yMax *= 1.12;
+
+  var xStep = niceStep(xMax, 5), yStep = niceStep(yMax, 5);
+  xMax = Math.ceil(xMax/xStep)*xStep;
+  yMax = Math.ceil(yMax/yStep)*yStep;
+
+  var px = function(x){ return PAD.l + (x/xMax)*(W-PAD.l-PAD.r); };
+  var py = function(y){ return H-PAD.b - (y/yMax)*(H-PAD.t-PAD.b); };
+
+  var s = "";
+
+  for(var gx=0; gx<=xMax+1e-9; gx+=xStep){
+    var X = px(gx);
+    s += '<line x1="'+X+'" y1="'+PAD.t+'" x2="'+X+'" y2="'+(H-PAD.b)+'" stroke="var(--grid)" stroke-width="1"/>';
+    s += '<text x="'+X+'" y="'+(H-PAD.b+20)+'" text-anchor="middle" font-size="11" fill="var(--ink-soft)" font-family="IBM Plex Mono, monospace">'+fmt(gx,2)+'</text>';
+  }
+  for(var gy=0; gy<=yMax+1e-9; gy+=yStep){
+    var Y = py(gy);
+    s += '<line x1="'+PAD.l+'" y1="'+Y+'" x2="'+(W-PAD.r)+'" y2="'+Y+'" stroke="var(--grid)" stroke-width="1"/>';
+    s += '<text x="'+(PAD.l-9)+'" y="'+(Y+4)+'" text-anchor="end" font-size="11" fill="var(--ink-soft)" font-family="IBM Plex Mono, monospace">'+fmt(gy,2)+'</text>';
+  }
+
+  s += '<line x1="'+PAD.l+'" y1="'+PAD.t+'" x2="'+PAD.l+'" y2="'+(H-PAD.b)+'" stroke="var(--rule)" stroke-width="1.5"/>';
+  s += '<line x1="'+PAD.l+'" y1="'+(H-PAD.b)+'" x2="'+(W-PAD.r)+'" y2="'+(H-PAD.b)+'" stroke="var(--rule)" stroke-width="1.5"/>';
+  s += '<text x="'+((PAD.l+W-PAD.r)/2)+'" y="'+(H-10)+'" text-anchor="middle" font-size="12.5" fill="var(--ink)">'+d.xLabel+'</text>';
+  s += '<text transform="translate(16,'+((PAD.t+H-PAD.b)/2)+') rotate(-90)" text-anchor="middle" font-size="12.5" fill="var(--ink)">'+d.yLabel+'</text>';
+
+  // 이론 직선 (공개 후)
+  var th = theoryR();
+  if(th){
+    var iScale = state.unitA ? 1 : 1000;
+    var ta = state.swap ? th/iScale : iScale/th;
+    var tx2 = xMax, ty2 = ta*tx2;
+    if(ty2 > yMax){ tx2 = yMax/ta; ty2 = yMax; }
+    s += '<line x1="'+px(0)+'" y1="'+py(0)+'" x2="'+px(tx2)+'" y2="'+py(ty2)+'" stroke="var(--ink-soft)" stroke-width="1.6" stroke-dasharray="1.5 4" stroke-linecap="round"/>';
+    s += '<text x="'+(px(tx2)-6)+'" y="'+(py(ty2)+16)+'" text-anchor="end" font-size="11" fill="var(--ink-soft)">이론 (20 °C)</text>';
+  }
+
+  // 추세선
+  if(d.fit){
+    var x1 = 0, x2 = xMax;
+    var y1 = d.fit.a*x1 + d.fit.b, y2 = d.fit.a*x2 + d.fit.b;
+    if(y2 > yMax){ x2 = (yMax - d.fit.b)/d.fit.a; y2 = yMax; }
+    if(y1 < 0){ x1 = (0 - d.fit.b)/d.fit.a; y1 = 0; }
+    if(isFinite(x1)&&isFinite(x2)&&isFinite(y1)&&isFinite(y2)){
+      s += '<line x1="'+px(x1)+'" y1="'+py(y1)+'" x2="'+px(x2)+'" y2="'+py(y2)+'" stroke="var(--blue)" stroke-width="2" stroke-dasharray="6 4"/>';
+    }
+  }
+
+  for(k=0;k<d.xs.length;k++){
+    s += '<circle cx="'+px(d.xs[k])+'" cy="'+py(d.ys[k])+'" r="5" fill="var(--copper)" stroke="var(--card)" stroke-width="2"/>';
+  }
+
+  if(d.n === 0){
+    s += '<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" font-size="13" fill="var(--ink-soft)">측정값을 넣으면 여기에 점이 찍힙니다</text>';
+  }
+
+  svg.innerHTML = s;
+  drawReadout(d);
+}
+
+function drawReadout(d){
+  var box = $("readout");
+  var slopeUnit = d.fit ? (state.swap ? (state.unitA ? "V/A" : "V/mA") : (state.unitA ? "A/V" : "mA/V")) : "";
+  var h =
+    cell("측정한 횟수", d.n + "회") +
+    cell("직선의 기울기", d.fit ? fmt(d.fit.a,4) + " " + slopeUnit : "—") +
+    cell("저항 R", d.R !== null ? fmt(d.R,2) + " Ω" : "—") +
+    cell("직선에 맞는 정도 R²", d.fit ? fmt(d.fit.r2,4) : "—");
+  var th = theoryR();
+  if(th){
+    h += cell("이론 저항 (20 °C)", fmt(th,2) + " Ω");
+    h += cell("이론과 차이", d.R !== null ? (d.R >= th ? "+" : "") + fmt((d.R-th)/th*100,1) + " %" : "—");
+  }
+  box.innerHTML = h;
+
+  var v = $("verdict");
+  if(!d.fit){ v.hidden = true; return; }
+  v.hidden = false;
+  var virt = state.mode === "virtual";
+  if(d.fit.r2 >= 0.99){
+    v.textContent = "점들이 거의 한 직선 위에 놓였습니다. 전압과 전류가 비례한다는 옴의 법칙이 잘 확인됩니다.";
+  }else if(virt && vs.revealed && vs.element === "lamp"){
+    v.textContent = "꼬마전구는 전압을 높일수록 필라멘트가 뜨거워져 저항이 커집니다. 그래서 그래프가 휘어집니다. 옴의 법칙을 따르지 않는 소자예요.";
+  }else if(virt){
+    v.textContent = "직선에서 벗어난 점이 있습니다. 먼저 단자에 맞는 눈금을 읽었는지 확인하고, 그래도 휘어진다면 왜 그런지 예상해 보세요.";
+  }else if(d.fit.r2 >= 0.95){
+    v.textContent = "대체로 직선을 이루지만 흩어진 점이 있습니다. 눈금을 잘못 읽은 값이 없는지 확인해 보세요.";
+  }else{
+    v.textContent = "점들이 직선에서 많이 벗어났습니다. 단위(mA인지 A인지)와 회로 연결을 다시 확인해 보세요.";
+  }
+}
+function cell(k, v){
+  return '<div class="cell"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
+}
+
+/* =========================================================
+   4. 표 그리기
+   ========================================================= */
+function drawRows(){
+  var tb = $("rows");
+  var rows = activeRows();
+  tb.innerHTML = "";
+  for(var k=0;k<rows.length;k++){
+    (function(idx){
+      var r = rows[idx];
+      var tr = document.createElement("tr");
+
+      var tdV = document.createElement("td");
+      var inV = document.createElement("input");
+      inV.type="number"; inV.step="any"; inV.inputMode="decimal";
+      inV.value = r.v; inV.placeholder = "0";
+      inV.setAttribute("aria-label", (idx+1)+"번째 전압");
+      inV.addEventListener("input", function(){ activeRows()[idx].v = inV.value; refreshCalc(); });
+      tdV.appendChild(inV);
+
+      var tdI = document.createElement("td");
+      var inI = document.createElement("input");
+      inI.type="number"; inI.step="any"; inI.inputMode="decimal";
+      inI.value = r.i; inI.placeholder = "0";
+      inI.setAttribute("aria-label", (idx+1)+"번째 전류");
+      inI.addEventListener("input", function(){ activeRows()[idx].i = inI.value; refreshCalc(); });
+      tdI.appendChild(inI);
+
+      var tdR = document.createElement("td");
+      tdR.className = "calc";
+
+      var tdD = document.createElement("td");
+      tdD.className = "del";
+      var bd = document.createElement("button");
+      bd.type="button"; bd.textContent="×"; bd.title="이 줄 지우기";
+      bd.setAttribute("aria-label",(idx+1)+"번째 줄 지우기");
+      bd.addEventListener("click", function(){
+        var a = activeRows();
+        a.splice(idx,1);
+        if(a.length === 0) setActiveRows(blankRows(1));
+        drawRows();
+      });
+      tdD.appendChild(bd);
+
+      tr.appendChild(tdV); tr.appendChild(tdI); tr.appendChild(tdR); tr.appendChild(tdD);
+      tb.appendChild(tr);
+    })(k);
+  }
+  refreshCalc();
+}
+
+function refreshCalc(){
+  var tb = $("rows");
+  var rows = activeRows();
+  for(var k=0;k<rows.length;k++){
+    var v = parseFloat(rows[k].v), i = parseFloat(rows[k].i);
+    var amps = state.unitA ? i : i/1000;
+    var cellEl = tb.rows[k] && tb.rows[k].cells[2];
+    if(cellEl){
+      cellEl.textContent = (isFinite(v)&&isFinite(amps)&&amps!==0) ? fmt(v/amps,1)+" Ω" : "";
+    }
+  }
+  drawPlot();
+}
+
+/* =========================================================
+   5. 가상 실험 — 물리 모형
+   ---------------------------------------------------------
+   회로: 건전지(내부저항) → 도선 → 스위치 → 전류계 → 소자 → 건전지
+         전압계는 소자 양 끝에 병렬로 연결
+   소자 저항: R(T) = R0 × (1 + α(T − 20))
+   온도 변화: 들어오는 열(I²R)과 식는 열(k·(T − 20))의 차이만큼 오르내림
+   ========================================================= */
+function elem(){
+  if(vs.element === "resistor"){
+    return { R0: vs.rValue, alpha: 0.0002, k: 0.015, C: 0.45, Tmax: 280,
+             breakMsg: "저항기가 너무 뜨거워져 타 버렸습니다" };
+  }
+  if(vs.element === "nichrome"){
+    var d = vs.dia/1000, L = vs.len/100, A = Math.PI*d*d/4;
+    return { R0: 1.1e-6*L/A, alpha: 0.0004,
+             k: 0.022*L*(vs.dia/0.3), C: 8400*450*A*L, Tmax: 1350,
+             breakMsg: "니크롬선이 녹아 끊어졌습니다" };
+  }
+  return { R0: 0.7, alpha: 0.0045, k: 3e-4, C: 4.5e-5, Tmax: 2900,
+           breakMsg: "꼬마전구의 필라멘트가 끊어졌습니다" };
+}
+
+// 온도 T일 때 회로의 전류·전압을 계산한다
+function solve(T){
+  var p = elem(), f = vs.factors;
+  var Tuse = f.heat ? T : PHYS.T0;
+  var R1 = p.R0*(1 + p.alpha*(Tuse - PHYS.T0));               // 소자 하나
+  var Rel = vs.broken ? Infinity
+          : vs.conn === "series" ? 2*R1
+          : vs.conn === "parallel" ? R1/2 : R1;                // 소자 묶음
+  var Rv = f.meter ? vs.vRange*PHYS.voltOhmPerVolt : Infinity; // 전압계
+  var Ra = f.meter ? PHYS.ammBurden/vs.aRange : 0;             // 전류계
+  var r  = f.battery ? vs.cells*PHYS.cellR : 0;                // 건전지
+  var Rw = f.wire ? PHYS.wireR : 0;                            // 도선
+  var E  = vs.on ? vs.cells*PHYS.cellEmf : 0;
+
+  var G = (isFinite(Rel) ? 1/Rel : 0) + (isFinite(Rv) ? 1/Rv : 0);
+  var I, V;
+  if(G === 0){ I = 0; V = E; }                // 끊어진 소자 + 이상적인 전압계
+  else{
+    var Rload = 1/G;
+    I = E/(r + Rw + Ra + Rload);
+    V = I*Rload;
+  }
+  var Iel = isFinite(Rel) ? V/Rel : 0;
+  var Iper = vs.conn === "parallel" ? Iel/2 : Iel;
+  return { E:E, I:I, V:V, R1:R1, P:Iper*Iper*R1, Rv:Rv, Ra:Ra, r:r, Rw:Rw,
+           Iv: isFinite(Rv) ? V/Rv : 0, Vt: E - I*r };
+}
+
+// dt초만큼 시간을 흘려보낸다
+function step(dt){
+  var p = elem();
+  var n = Math.max(1, Math.ceil(dt/0.005)), h = dt/n, tau = p.C/p.k;
+  for(var k=0;k<n;k++){
+    if(!vs.factors.heat){ vs.T = PHYS.T0; break; }
+    var s = solve(vs.T);
+    var Teq = PHYS.T0 + s.P/p.k;
+    vs.T = Teq + (vs.T - Teq)*Math.exp(-h/tau);
+    if(!vs.broken && vs.T > p.Tmax){
+      vs.broken = true; vs.T = p.Tmax;
+      toast(p.breakMsg);
+    }
+  }
+  var sol = solve(vs.T);
+  vs.last = sol;
+  var a = 1 - Math.exp(-dt/0.18);     // 바늘이 천천히 따라가게
+  vs.needleV += (sol.V - vs.needleV)*a;
+  vs.needleA += (sol.I - vs.needleA)*a;
+}
+
+/* =========================================================
+   6. 가상 실험 — 그림
+   ========================================================= */
+var RED = "#C8452E", BLK = "var(--ink-soft)";
+var BAND = ["#1A1A1A","#7A4A1E","#C62828","#E65100","#F9A825","#2E7D32","#1565C0","#6A1B9A","#757575","#F5F5F5"];
+
+function mix(a, b, t){
+  t = Math.max(0, Math.min(1, t));
+  var x = parseInt(a.slice(1),16), y = parseInt(b.slice(1),16);
+  var r = Math.round(((x>>16)&255)*(1-t) + ((y>>16)&255)*t);
+  var g = Math.round(((x>>8)&255)*(1-t) + ((y>>8)&255)*t);
+  var c = Math.round((x&255)*(1-t) + (y&255)*t);
+  return "rgb("+r+","+g+","+c+")";
+}
+// 금속이 뜨거워질 때의 색
+function hot(T){
+  if(T < 350) return "#8E9692";
+  if(T < 700) return mix("#8E9692","#C62828",(T-350)/350);
+  if(T < 1100) return mix("#C62828","#FF8F00",(T-700)/400);
+  return mix("#FF8F00","#FFE082",(T-1100)/1200);
+}
+function bands(R){
+  var e = 0;
+  while(R >= 100){ R /= 10; e++; }
+  return [BAND[Math.floor(R/10)], BAND[Math.round(R%10)], BAND[e], "#C9A227"];
+}
+function wire(d, color){
+  return '<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>';
+}
+function meterIcon(x, y, letter){
+  return '<circle cx="'+x+'" cy="'+y+'" r="21" fill="#F6F2E7" stroke="#6B6B6B" stroke-width="2"/>'
+       + '<text x="'+x+'" y="'+(y+6)+'" text-anchor="middle" font-size="17" font-weight="600" fill="#222" font-family="IBM Plex Mono, monospace">'+letter+'</text>';
+}
+function elementLabel(){
+  var base = vs.element === "resistor" ? "저항기 " + vs.rValue + " Ω"
+           : vs.element === "nichrome" ? "니크롬선 " + vs.len + " cm, 지름 " + vs.dia + " mm"
+           : "꼬마전구 2.5 V 0.3 A";
+  if(vs.conn === "series") base += " 2개 직렬";
+  if(vs.conn === "parallel") base += " 2개 병렬";
+  return base;
+}
+
+// 바뀔 때만 다시 그리는 부분: 도선, 건전지, 스위치, 계기 기호
+function renderStatic(){
+  var n = vs.cells, hx1 = 22, hw = 14 + 25*n, hx2 = hx1 + hw;
+  var s = '';
+  s += '<rect x="232" y="26" width="196" height="108" rx="8" fill="var(--copper-soft)" opacity=".6"/>';
+  s += '<text x="330" y="16" text-anchor="middle" font-size="12" fill="var(--ink)">'+elementLabel()+'</text>';
+
+  // 도선
+  s += wire("M"+hx2+" 224 L205 224 L205 80 L250 80", RED);
+  s += wire("M"+hx1+" 224 L12 224 L12 274 L272 274 L272 252", BLK);
+  s += wire("M340 252 L520 252 L520 161", BLK);
+  s += wire("M520 119 L520 80 L410 80", BLK);
+  s += wire("M250 80 L250 165 L309 165", RED);
+  s += wire("M410 80 L410 165 L351 165", BLK);
+
+  // 건전지
+  s += '<text x="'+(hx1+hw/2)+'" y="190" text-anchor="middle" font-size="11.5" fill="var(--ink-soft)">건전지 '+n+'개</text>';
+  s += '<rect x="'+hx1+'" y="198" width="'+hw+'" height="52" rx="6" fill="#3B403D"/>';
+  for(var k=0;k<n;k++){
+    var x = hx1 + 8 + 25*k;
+    s += '<rect x="'+(x+7)+'" y="202" width="8" height="5" rx="1" fill="#BDBDBD"/>';
+    s += '<rect x="'+x+'" y="206" width="22" height="38" rx="3" fill="#C9772F"/>';
+    s += '<text x="'+(x+11)+'" y="229" text-anchor="middle" font-size="8.5" fill="#fff" font-family="IBM Plex Mono, monospace">1.5V</text>';
+  }
+  s += '<text x="'+(hx2+5)+'" y="218" font-size="13" fill="'+RED+'">+</text>';
+  s += '<text x="'+(hx1-12)+'" y="218" font-size="13" fill="var(--ink-soft)">−</text>';
+
+  // 스위치 (누르면 켜고 끔)
+  var on = vs.on, rad = 35*Math.PI/180;
+  var bx = on ? 340 : 272 + 68*Math.cos(rad), by = on ? 252 : 252 - 68*Math.sin(rad);
+  s += '<g data-act="switch" role="button" tabindex="0" aria-label="스위치 '+(on?'끄기':'켜기')+'">';
+  s += '<rect x="250" y="192" width="112" height="76" fill="transparent"/>';
+  s += '<text x="306" y="204" text-anchor="middle" font-size="11.5" fill="'+(on?'var(--copper)':'var(--ink-soft)')+'">스위치 '+(on?'켜짐':'꺼짐')+'</text>';
+  s += '<rect x="262" y="246" width="88" height="12" rx="3" fill="#8B6A45"/>';
+  s += '<circle cx="272" cy="252" r="4.5" fill="#B8860B"/><circle cx="340" cy="252" r="4.5" fill="#B8860B"/>';
+  s += '<line x1="272" y1="252" x2="'+bx.toFixed(1)+'" y2="'+by.toFixed(1)+'" stroke="#9AA3A8" stroke-width="4" stroke-linecap="round"/>';
+  s += '<circle cx="'+bx.toFixed(1)+'" cy="'+by.toFixed(1)+'" r="6" fill="#2B2B2B"/>';
+  s += '</g>';
+
+  s += meterIcon(520, 140, "A") + meterIcon(330, 165, "V");
+  $("rig-static").innerHTML = s;
+}
+
+// 소자 하나 그리기 (x1~x2 사이, 높이 y)
+function part(x1, x2, y){
+  var cx = (x1+x2)/2, T = vs.T, s = '', k;
+  if(vs.element === "resistor"){
+    s += '<line x1="'+x1+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'" stroke="#8C8C8C" stroke-width="2"/>';
+    var body = vs.broken ? "#2A2420" : mix("#D8C29C","#6B4A2F",(T-120)/200);
+    s += '<rect x="'+(cx-20)+'" y="'+(y-8)+'" width="40" height="16" rx="7" fill="'+body+'" stroke="#9C8763"/>';
+    if(!vs.broken){
+      var b = bands(vs.rValue), off = [-12,-6,0,10];
+      for(k=0;k<4;k++) s += '<rect x="'+(cx+off[k]-1.5)+'" y="'+(y-8)+'" width="3" height="16" fill="'+b[k]+'"/>';
+    }else{
+      s += '<path d="M'+(cx-3)+' '+(y-12)+' q-6 -7 0 -13 q6 -6 0 -12" fill="none" stroke="#9E9E9E" stroke-width="2" stroke-linecap="round" opacity=".75"/>';
+    }
+  }else if(vs.element === "nichrome"){
+    var loops = Math.max(3, Math.round((x2-x1)/160*(4 + vs.len/8)));
+    var N = loops*8, d = "M"+x1+" "+y+" L"+(x1+8)+" "+y, pen = true;
+    for(k=0;k<=N;k++){
+      var t = k/N;
+      if(vs.broken && t > 0.46 && t < 0.54){ pen = false; continue; }
+      var xx = x1 + 8 + (x2-x1-16)*t, yy = y + 8*Math.sin(t*loops*2*Math.PI);
+      d += (pen ? " L" : " M") + xx.toFixed(1) + " " + yy.toFixed(1);
+      pen = true;
+    }
+    d += " L"+x2+" "+y;
+    if(!vs.broken && T > 500){
+      s += '<path d="'+d+'" fill="none" stroke="#FF6E40" stroke-width="7" opacity="'+Math.min(0.75,(T-500)/900).toFixed(2)+'" filter="url(#glow)"/>';
+    }
+    s += '<path d="'+d+'" fill="none" stroke="'+hot(T)+'" stroke-width="'+(0.8+vs.dia*4).toFixed(1)+'" stroke-linejoin="round"/>';
+  }else{
+    var by = y - 17;
+    var g = vs.broken ? 0 : Math.max(0, Math.min(1, (T-800)/1600));
+    s += '<line x1="'+x1+'" y1="'+y+'" x2="'+(cx-12)+'" y2="'+y+'" stroke="#8C8C8C" stroke-width="2"/>';
+    s += '<line x1="'+(cx+12)+'" y1="'+y+'" x2="'+x2+'" y2="'+y+'" stroke="#8C8C8C" stroke-width="2"/>';
+    if(g > 0) s += '<circle cx="'+cx+'" cy="'+by+'" r="'+(18+10*g).toFixed(1)+'" fill="#FFD36B" opacity="'+(0.85*g).toFixed(2)+'" filter="url(#glow)"/>';
+    s += '<circle cx="'+cx+'" cy="'+by+'" r="12" fill="'+(g > 0 ? mix("#FFFFFF","#FFF1B8",g) : "rgba(255,255,255,.35)")+'" stroke="#9AA6A6" stroke-width="1.2"/>';
+    s += '<path d="M'+(cx-5)+' '+(y-5)+' L'+(cx-5)+' '+by+' M'+(cx+5)+' '+(y-5)+' L'+(cx+5)+' '+by+'" stroke="#9E9E9E" stroke-width="1"/>';
+    var fil = vs.broken
+      ? 'M'+(cx-5)+' '+by+' l2 -3 l1 4 M'+(cx+5)+' '+by+' l-2 -3 l-1 5'
+      : 'M'+(cx-5)+' '+by+' l2 -3 l2 3 l2 -3 l2 3 l2 -3';
+    s += '<path d="'+fil+'" fill="none" stroke="'+hot(T*0.5)+'" stroke-width="1.4"/>';
+    s += '<rect x="'+(cx-12)+'" y="'+(y-5)+'" width="24" height="11" rx="2" fill="#A7A7A7"/>';
+  }
+  return s;
+}
+
+function thermo(T){
+  var cx = 600, top = 30, bot = 150, Tc = Math.max(0, Math.min(T, 300));
+  var yT = bot - (Tc/300)*(bot-top);
+  var s = '<rect x="'+(cx-7)+'" y="'+(top-6)+'" width="14" height="'+(bot-top+16)+'" rx="7" fill="var(--paper)" stroke="var(--rule)"/>';
+  s += '<rect x="'+(cx-3)+'" y="'+yT.toFixed(1)+'" width="6" height="'+(bot+10-yT).toFixed(1)+'" fill="#C62828"/>';
+  s += '<circle cx="'+cx+'" cy="162" r="11" fill="#C62828" stroke="var(--rule)"/>';
+  for(var t=0;t<=300;t+=50){
+    var y = bot - (t/300)*(bot-top);
+    s += '<line x1="'+(cx+7)+'" y1="'+y+'" x2="'+(cx+(t%100===0?13:10))+'" y2="'+y+'" stroke="var(--ink-soft)"/>';
+    if(t%100===0) s += '<text x="'+(cx+16)+'" y="'+(y+3.5)+'" font-size="9.5" fill="var(--ink-soft)" font-family="IBM Plex Mono, monospace">'+t+'</text>';
+  }
+  s += '<text x="'+cx+'" y="194" text-anchor="middle" font-size="11" fill="var(--ink-soft)">소자 온도</text>';
+  s += '<text x="'+cx+'" y="210" text-anchor="middle" font-size="12" fill="var(--ink)" font-family="IBM Plex Mono, monospace">'+(T > 300 ? "300 °C 넘음" : "약 " + Math.round(T) + " °C")+'</text>';
+  return s;
+}
+
+// 자주 다시 그리는 부분: 소자, 온도계
+function renderDyn(){
+  var s = '';
+  if(vs.conn === "single") s += part(250, 410, 80);
+  else if(vs.conn === "series") s += part(250, 330, 80) + part(330, 410, 80);
+  else{
+    s += '<path d="M250 80 L270 80 M270 54 L270 106 M390 54 L390 106 M390 80 L410 80" fill="none" stroke="#8C8C8C" stroke-width="2"/>';
+    s += part(270, 390, 54) + part(270, 390, 106);
+  }
+  s += '<circle cx="250" cy="80" r="4.5" fill="#B8860B"/><circle cx="410" cy="80" r="4.5" fill="#B8860B"/>';
+  s += thermo(vs.T);
+  $("rig-dyn").innerHTML = s;
+}
+
+/* ---------- 아날로그 계기 ---------- */
+function pol(r, deg){
+  var a = deg*Math.PI/180;
+  return [(150 + r*Math.sin(a)).toFixed(1), (176 - r*Math.cos(a)).toFixed(1)];
+}
+function drawMeter(id, kind, range){
+  var max, unit, div;
+  if(kind === "V"){ max = range; unit = "V"; div = 30; }
+  else if(range < 1){ max = Math.round(range*1000); unit = "mA"; div = 50; }
+  else{ max = range; unit = "A"; div = 50; }
+  var s = '<rect x="3" y="3" width="294" height="190" rx="10" fill="#F6F2E7" stroke="#BDB6A4" stroke-width="1.5"/>';
+  var p1 = pol(136,-50), p2 = pol(136,50);
+  s += '<path d="M'+p1[0]+' '+p1[1]+' A136 136 0 0 1 '+p2[0]+' '+p2[1]+'" fill="none" stroke="#B7C0C4" stroke-width="4"/>';
+  for(var i=0;i<=div;i++){
+    var deg = -50 + 100*i/div;
+    var len = i%10 === 0 ? 18 : i%5 === 0 ? 12 : 7;
+    var a = pol(128-len, deg), b = pol(128, deg);
+    s += '<line x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" stroke="#222" stroke-width="'+(i%10===0?1.6:1)+'"/>';
+    if(i%10 === 0){
+      var t = pol(98, deg);
+      s += '<text x="'+t[0]+'" y="'+(+t[1]+4)+'" text-anchor="middle" font-size="13" fill="#222" font-family="IBM Plex Mono, monospace">'+fmt(max*i/div,2)+'</text>';
+    }
+  }
+  s += '<text x="150" y="130" text-anchor="middle" font-size="22" font-weight="600" fill="#222" font-family="IBM Plex Mono, monospace">'+unit+'</text>';
+  s += '<text x="16" y="184" font-size="11" fill="#6B6455">단자 '+(kind==="V" ? range+" V" : (range<1 ? Math.round(range*1000)+" mA" : range+" A"))+'</text>';
+  s += '<text id="'+id+'-o" x="284" y="184" text-anchor="end" font-size="11" fill="#B3261E" opacity="0">눈금 초과</text>';
+  s += '<g id="'+id+'-n" transform="rotate(-50 150 176)"><line x1="150" y1="186" x2="150" y2="50" stroke="#B3261E" stroke-width="2" stroke-linecap="round"/></g>';
+  s += '<circle cx="150" cy="176" r="8" fill="#333"/>';
+  $(id).innerHTML = s;
+}
+function setNeedle(id, val, range){
+  var f = val/range;
+  var deg = -50 + 100*Math.min(Math.max(f,0), 1.04);
+  var n = $(id+"-n"), o = $(id+"-o");
+  if(n) n.setAttribute("transform", "rotate("+deg.toFixed(2)+" 150 176)");
+  if(o) o.setAttribute("opacity", f > 1.005 ? "1" : "0");
+}
+
+/* ---------- 상태 문구 ---------- */
+var lastStatus = "";
+function updateStatus(){
+  var s = vs.last, key, html;
+  if(vs.broken){
+    key = "broken";
+    html = elem().breakMsg + '. <button class="btn ghost slim" type="button" id="fix">새것으로 바꾸기</button>';
+  }else if(vs.on && s && (s.V > vs.vRange*1.005 || s.I > vs.aRange*1.005)){
+    key = "over"; html = "바늘이 눈금 끝을 넘었습니다. 더 큰 단자로 바꿔 끼우세요.";
+  }else if(vs.on && vs.T > 120){
+    key = "hot"; html = "소자가 뜨겁습니다. 측정할 때만 잠깐 켜 두세요.";
+  }else if(vs.on){
+    key = "on"; html = "전류가 흐르고 있습니다. 바늘을 읽어 아래 표에 적으세요.";
+  }else{
+    key = "off"; html = "스위치를 켜야 전류가 흐릅니다.";
+  }
+  if(key === lastStatus) return;
+  lastStatus = key;
+  var el = $("vstatus");
+  el.className = "vstatus" + (key === "on" || key === "off" ? "" : " warn");
+  el.innerHTML = html;
+  if(key === "broken"){
+    $("fix").addEventListener("click", function(){
+      vs.broken = false; vs.T = PHYS.T0; lastStatus = "";
+      renderDyn(); updateStatus(); toast("새것으로 바꿨습니다");
+    });
+  }
+}
+
+/* ---------- 숨겨진 요인 ---------- */
+var FACTORS = [
+  { id:"heat", name:"발열",
+    text:"전류가 흐르면 소자가 뜨거워지고, 금속은 뜨거울수록 저항이 커집니다. 스위치를 오래 켜 두거나 전류가 클수록 더 뜨거워집니다. 꼬마전구 필라멘트는 2000 °C가 넘게 올라가 저항이 10배 넘게 변합니다." },
+  { id:"battery", name:"건전지 내부저항",
+    text:"건전지 안에도 저항이 있어서, 전류가 흐르면 건전지가 내보내는 전압이 표시(1.5 V × 개수)보다 작아집니다. 그래서 전압은 건전지 개수로 계산하지 말고 전압계로 재야 합니다." },
+  { id:"meter", name:"전류계·전압계 내부저항",
+    text:"전압계도 전류를 조금 빼내 가고, 전류계는 그 전류까지 함께 잽니다. 그래서 V ÷ I로 구한 저항이 실제보다 조금 작게 나옵니다. 저항이 클수록, 전압계 단자가 낮을수록(3 V) 차이가 커집니다." },
+  { id:"wire", name:"도선 저항",
+    text:"도선과 집게에도 작은 저항이 있어 전압의 일부를 써 버립니다. 하지만 전압계를 소자 양 끝에 바로 연결했기 때문에 V ÷ I 결과는 거의 바뀌지 않습니다." }
+];
+
+function renderReveal(){
+  var box = $("reveal");
+  if(!vs.revealed){
+    box.innerHTML =
+      '<h2>숨겨진 요인</h2>' +
+      '<p class="muted">이 장치에는 실제 실험실처럼 결과를 이론과 다르게 만드는 요인이 숨어 있습니다. 측정을 마치면, 그래프가 왜 그렇게 나왔는지 먼저 예상해 보세요.</p>' +
+      '<p class="muted">선생님이 알려 주는 암호를 넣으면 공개됩니다.</p>' +
+      '<div class="pin-row"><input id="pin" type="password" inputmode="numeric" autocomplete="off" aria-label="선생님 암호" placeholder="암호">' +
+      '<button class="btn slim" type="button" id="pin-go">공개하기</button></div>';
+    var go = function(){
+      if($("pin").value === TEACHER_PIN){
+        vs.revealed = true; renderReveal(); drawPlot(); toast("숨겨진 요인을 공개했습니다");
+      }else{
+        toast("암호가 맞지 않습니다"); $("pin").select();
+      }
+    };
+    $("pin-go").addEventListener("click", go);
+    $("pin").addEventListener("keydown", function(e){ if(e.key === "Enter") go(); });
+    return;
+  }
+
+  var h = '<h2>숨겨진 요인</h2><p class="muted">하나씩 끄고 다시 측정해 보세요. 어떤 요인이 그래프의 기울기를 바꾸고, 어떤 요인은 바꾸지 않나요?</p>';
+  for(var k=0;k<FACTORS.length;k++){
+    var f = FACTORS[k];
+    h += '<div class="factor"><label class="opt"><input type="checkbox" data-f="'+f.id+'"'+(vs.factors[f.id]?' checked':'')+'> <b>'+f.name+'</b></label>'
+       + '<p class="muted">'+f.text+'</p><p class="live" id="live-'+f.id+'"></p></div>';
+  }
+  h += '<div class="factor"><label class="opt"><input type="checkbox" id="theory"'+(vs.theory?' checked':'')+'> 그래프에 이론 직선(20 °C, 이상적인 장치) 함께 보기</label></div>';
+  h += '<p style="margin-top:12px"><button class="btn ghost slim" type="button" id="hide-again">다시 숨기기</button></p>';
+  box.innerHTML = h;
+
+  var cbs = box.querySelectorAll("input[data-f]");
+  for(var m=0;m<cbs.length;m++){
+    cbs[m].addEventListener("change", function(e){
+      vs.factors[e.target.getAttribute("data-f")] = e.target.checked;
+      if(!vs.factors.heat) vs.T = PHYS.T0;
+      renderDyn(); updateLive();
+    });
+  }
+  $("theory").addEventListener("change", function(e){ vs.theory = e.target.checked; drawPlot(); });
+  $("hide-again").addEventListener("click", function(){
+    vs.revealed = false; vs.factors = copyFactors(HIDDEN_FACTORS);
+    renderReveal(); drawPlot();
+  });
+  updateLive();
+}
+
+function updateLive(){
+  if(!vs.revealed) return;
+  var s = vs.last || solve(vs.T), p = elem(), f = vs.factors;
+  var set = function(id, txt){ var el = $("live-"+id); if(el) el.textContent = txt; };
+  set("heat", f.heat
+    ? "지금 약 " + Math.round(vs.T) + " °C, 소자 하나의 저항 " + fmt(s.R1,2) + " Ω (20 °C에서 " + fmt(p.R0,2) + " Ω)"
+    : "꺼짐: 소자 온도가 20 °C로 고정됩니다");
+  set("battery", !f.battery ? "꺼짐: 내부저항 0 Ω"
+    : vs.on ? "표시 " + fmt(s.E,1) + " V → 실제로 내보내는 전압 " + fmt(s.Vt,2) + " V (내부저항 " + fmt(s.r,1) + " Ω)"
+    : "내부저항 " + fmt(vs.cells*PHYS.cellR,1) + " Ω · 스위치를 켜면 전압 차이가 보입니다");
+  set("meter", f.meter
+    ? "전압계 " + fmt(s.Rv/1000,0) + " kΩ로 새는 전류 " + fmt(s.Iv*1000,3) + " mA, 전류계 " + fmt(s.Ra,2) + " Ω"
+    : "꺼짐: 이상적인 계기 (전압계 ∞, 전류계 0 Ω)");
+  set("wire", f.wire
+    ? "도선·집게 " + fmt(PHYS.wireR,1) + " Ω에서 쓰는 전압 " + fmt(s.I*PHYS.wireR,3) + " V"
+    : "꺼짐: 도선 저항 0 Ω");
+}
+
+/* ---------- 조작 패널 ---------- */
+function makeSeg(id, items, onPick){
+  var box = $(id);
+  items.forEach(function(it){
+    var b = document.createElement("button");
+    b.type = "button"; b.textContent = it[1]; b._v = it[0];
+    b.addEventListener("click", function(){ onPick(it[0]); });
+    box.appendChild(b);
+  });
+}
+function setPressed(id, v){
+  var bs = $(id).children;
+  for(var k=0;k<bs.length;k++) bs[k].setAttribute("aria-pressed", bs[k]._v === v ? "true" : "false");
+}
+
+function syncControls(){
+  setPressed("seg-el", vs.element); setPressed("seg-r", vs.rValue);
+  setPressed("seg-d", vs.dia);      setPressed("seg-c", vs.conn);
+  setPressed("seg-vr", vs.vRange);  setPressed("seg-ar", vs.aRange);
+  $("ctl-r").hidden = vs.element !== "resistor";
+  $("ctl-n").hidden = vs.element !== "nichrome";
+  $("cell-n").textContent = vs.cells + "개";
+  $("cell-v").textContent = "표시 " + fmt(vs.cells*PHYS.cellEmf,1) + " V";
+  $("len").value = vs.len; $("len-v").textContent = vs.len + " cm";
+  syncSwitchBtn();
+  drawMeter("vm", "V", vs.vRange);
+  drawMeter("am", "A", vs.aRange);
+  vs.last = solve(vs.T);
+  setNeedle("vm", vs.needleV, vs.vRange);
+  setNeedle("am", vs.needleA, vs.aRange);
+  renderStatic(); renderDyn();
+  lastStatus = ""; updateStatus(); updateLive();
+  drawPlot();
+}
+function syncSwitchBtn(){
+  var b = $("sw-btn");
+  b.textContent = vs.on ? "스위치 끄기" : "스위치 켜기";
+  b.className = vs.on ? "btn ghost" : "btn";
+}
+function toggleSwitch(){
+  vs.on = !vs.on;
+  syncSwitchBtn(); renderStatic(); vs.last = solve(vs.T); lastStatus = ""; updateStatus();
+}
+
+// 소자·연결이 바뀌면 새 소자로 바꾸고, 표를 비울지 묻는다
+function changeCondition(fn){
+  var has = state.vrows.some(function(r){ return r.v !== "" || r.i !== ""; });
+  fn();
+  vs.T = PHYS.T0; vs.broken = false;
+  if(has && confirm("측정 조건이 바뀌었습니다.\n이전 값과 섞이지 않도록 표를 비울까요?")){
+    state.vrows = blankRows(5);
+    if(state.mode === "virtual") drawRows();
+  }
+  syncControls();
+}
+
+makeSeg("seg-el", [["resistor","저항기"],["nichrome","니크롬선"],["lamp","꼬마전구"]], function(v){
+  if(v !== vs.element) changeCondition(function(){ vs.element = v; });
+});
+makeSeg("seg-r", RES_VALUES.map(function(r){ return [r, r + " Ω"]; }), function(v){
+  if(v !== vs.rValue) changeCondition(function(){ vs.rValue = v; });
+});
+makeSeg("seg-d", [[0.2,"0.2 mm"],[0.3,"0.3 mm"],[0.5,"0.5 mm"]], function(v){
+  if(v !== vs.dia) changeCondition(function(){ vs.dia = v; });
+});
+makeSeg("seg-c", [["single","1개"],["series","2개 직렬"],["parallel","2개 병렬"]], function(v){
+  if(v !== vs.conn) changeCondition(function(){ vs.conn = v; });
+});
+makeSeg("seg-vr", [[3,"3 V"],[15,"15 V"]], function(v){ vs.vRange = v; syncControls(); });
+makeSeg("seg-ar", [[0.05,"50 mA"],[0.5,"500 mA"],[5,"5 A"]], function(v){ vs.aRange = v; syncControls(); });
+
+$("cell-minus").addEventListener("click", function(){ if(vs.cells > 1){ vs.cells--; syncControls(); } });
+$("cell-plus").addEventListener("click", function(){ if(vs.cells < 6){ vs.cells++; syncControls(); } });
+$("len").addEventListener("input", function(e){
+  vs.len = parseInt(e.target.value,10); $("len-v").textContent = vs.len + " cm";
+  renderStatic(); renderDyn();
+});
+$("len").addEventListener("change", function(){ changeCondition(function(){}); });
+$("sw-btn").addEventListener("click", toggleSwitch);
+$("rig").addEventListener("click", function(e){
+  if(e.target.closest && e.target.closest('[data-act="switch"]')) toggleSwitch();
+});
+$("rig").addEventListener("keydown", function(e){
+  if((e.key === "Enter" || e.key === " ") && e.target.closest && e.target.closest('[data-act="switch"]')){
+    e.preventDefault(); toggleSwitch();
+    var g = document.querySelector('[data-act="switch"]'); if(g) g.focus();
+  }
+});
+
+/* ---------- 시간이 흐르게 하는 반복 ---------- */
+var raf = null, lastT = 0, lastSlow = 0;
+function loop(ts){
+  if(state.mode !== "virtual" || $("lab").hidden){ raf = null; return; }
+  var dt = lastT ? Math.min((ts - lastT)/1000, 0.1) : 0.016;
+  lastT = ts;
+  step(dt);
+  setNeedle("vm", vs.needleV, vs.vRange);
+  setNeedle("am", vs.needleA, vs.aRange);
+  if(ts - lastSlow > 100){ lastSlow = ts; renderDyn(); updateStatus(); updateLive(); }
+  raf = requestAnimationFrame(loop);
+}
+function startLoop(){ if(!raf){ lastT = 0; raf = requestAnimationFrame(loop); } }
+
+/* =========================================================
+   7. 화면 전환
+   ========================================================= */
+function show(id){
+  var ids = ["gate","lab","board"];
+  for(var k=0;k<ids.length;k++) $(ids[k]).hidden = (ids[k] !== id);
+  window.scrollTo(0,0);
+}
+
+function setMode(m){
+  state.mode = m;
+  $("tab-real").setAttribute("aria-selected", m === "real" ? "true" : "false");
+  $("tab-virtual").setAttribute("aria-selected", m === "virtual" ? "true" : "false");
+  $("vpanel").hidden = m !== "virtual";
+  $("tbl-desc").textContent = m === "virtual"
+    ? "건전지 개수를 바꿔 가며 계기의 바늘을 읽어 한 줄씩 적습니다. 전류계 단자가 50·500 mA면 mA 눈금, 5 A면 A 눈금이에요."
+    : "회로에 걸린 전압과 그때 흐른 전류를 한 줄씩 적습니다.";
+  drawRows();
+  if(m === "virtual"){ syncControls(); startLoop(); }
+}
+$("tab-real").addEventListener("click", function(){ setMode("real"); });
+$("tab-virtual").addEventListener("click", function(){ setMode("virtual"); });
+
+function toast(msg){
+  var t = $("toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toast._h);
+  toast._h = setTimeout(function(){ t.classList.remove("on"); }, 1900);
+}
+
+/* =========================================================
+   8. 입장 / 저장 / 불러오기
+   ========================================================= */
+function vSetup(){
+  return { cells:vs.cells, element:vs.element, rValue:vs.rValue, len:vs.len, dia:vs.dia,
+           conn:vs.conn, vRange:vs.vRange, aRange:vs.aRange,
+           revealed:vs.revealed, factors:copyFactors(vs.factors), theory:vs.theory };
+}
+
+$("enter").addEventListener("click", function(){
+  var cls = $("g-cls").value.trim();
+  var no  = $("g-no").value.trim();
+  var nm  = $("g-name").value.trim();
+  if(!nm){ toast("이름을 넣어 주세요"); $("g-name").focus(); return; }
+
+  state.student = { cls:cls||"-", no:no||"-", name:nm };
+  var saved = loadAll()[studentKey(state.student)];
+  vs.on = false; vs.T = PHYS.T0; vs.broken = false; vs.needleV = 0; vs.needleA = 0;
+  if(saved){
+    state.rows  = saved.rows && saved.rows.length ? saved.rows : blankRows(5);
+    state.vrows = saved.vrows && saved.vrows.length ? saved.vrows : blankRows(5);
+    state.unitA = !!saved.unitA;
+    state.swap  = !!saved.swap;
+    state.origin= saved.origin !== false;
+    state.mode  = saved.mode === "virtual" ? "virtual" : "real";
+    if(saved.v){
+      var v = saved.v;
+      ["cells","element","rValue","len","dia","conn","vRange","aRange"].forEach(function(k){
+        if(v[k] !== undefined) vs[k] = v[k];
+      });
+      vs.revealed = !!v.revealed;
+      vs.theory = v.theory !== false;
+      vs.factors = v.factors ? copyFactors(v.factors) : copyFactors(HIDDEN_FACTORS);
+    }
+    toast("지난 기록을 불러왔습니다");
+  }else{
+    state.rows = blankRows(5); state.vrows = blankRows(5);
+  }
+
+  $("unit-a").checked = state.unitA;
+  $("swap").checked   = state.swap;
+  $("origin").checked = state.origin;
+  $("th-i").textContent = "전류 (" + (state.unitA?"A":"mA") + ")";
+  $("who").innerHTML = state.student.cls + "반 " + state.student.no + "번 <b>" + state.student.name + "</b>";
+
+  show("lab"); renderReveal(); setMode(state.mode);
+});
+
+$("add-row").addEventListener("click", function(){
+  activeRows().push({v:"",i:""}); drawRows();
+});
+$("clear").addEventListener("click", function(){
+  setActiveRows(blankRows(5)); drawRows();
+});
+$("unit-a").addEventListener("change", function(e){
+  state.unitA = e.target.checked;
+  $("th-i").textContent = "전류 (" + (state.unitA?"A":"mA") + ")";
+  refreshCalc();
+});
+$("swap").addEventListener("change", function(e){ state.swap = e.target.checked; drawPlot(); });
+$("origin").addEventListener("change", function(e){ state.origin = e.target.checked; drawPlot(); });
+
+function cleanRows(rows, unitA){
+  var clean = [];
+  for(var k=0;k<(rows||[]).length;k++){
+    var v = parseFloat(rows[k].v), i = parseFloat(rows[k].i);
+    if(isFinite(v) && isFinite(i)) clean.push({ v:v, i: unitA ? i : i/1000 });
+  }
+  return clean;
+}
+// 서버로 보낼 모양. 기존 칸(rows, R, r2, n)은 실측값 그대로이고, 가상 실험은 virtual 칸에 따로 담습니다.
+function payloadOf(entry){
+  return {
+    action: "submit",
+    key: CLASS_KEY,
+    mode: entry.mode,
+    student: entry.student,
+    unit: entry.unitA ? "A" : "mA",
+    rows: cleanRows(entry.rows, entry.unitA),
+    R: entry.R, r2: entry.r2, n: entry.n,
+    virtual: {
+      rows: cleanRows(entry.vrows, entry.unitA),
+      R: entry.vR, r2: entry.vr2, n: entry.vn,
+      setup: entry.v || null
+    },
+    at: entry.at
+  };
+}
+
+function status(msg){ $("save-status").textContent = msg || ""; }
+
+// 지금 화면의 기록을 한 명분 묶음으로 만듭니다
+function makeEntry(){
+  var dR = analyse(state.rows), dV = analyse(state.vrows);
+  return {
+    student: state.student,
+    rows: state.rows, vrows: state.vrows, mode: state.mode,
+    unitA: state.unitA, swap: state.swap, origin: state.origin,
+    R: dR.R, r2: dR.fit ? dR.fit.r2 : null, n: dR.n,
+    vR: dV.R, vr2: dV.fit ? dV.fit.r2 : null, vn: dV.n,
+    v: vSetup(),
+    at: new Date().toISOString(),
+    sent: false
+  };
+}
+function storeEntry(entry){
+  var all = loadAll();
+  all[studentKey(state.student)] = entry;
+  return saveAll(all);
+}
+function timeText(d){
+  return d.getHours() + ":" + ("0" + d.getMinutes()).slice(-2);
+}
+
+// 이 기기에만 저장 (선생님께는 가지 않음)
+$("save").addEventListener("click", function(){
+  var ok = storeEntry(makeEntry());
+  toast(ok ? "이 기기에 저장했습니다" : "이 브라우저에서는 저장할 수 없습니다");
+  status(ok ? "저장됨 · 아직 제출 전" : "");
+});
+
+// 선생님께 제출 (이 기기에도 함께 저장)
+$("submit").addEventListener("click", function(){
+  if(!SERVER_URL){ toast("제출 주소가 아직 설정되지 않았습니다. 선생님께 알려 주세요"); return; }
+  var entry = makeEntry();
+  if(entry.n + entry.vn === 0){ toast("제출할 측정값이 없습니다"); return; }
+  if(!confirm("지금 기록을 선생님께 제출할까요?\n다시 제출하면 가장 최근 값으로 바뀝니다.")) return;
+
+  storeEntry(entry);
+  var btn = $("submit");
+  btn.disabled = true;
+  status("제출하는 중…");
+  sendToServer(payloadOf(entry)).then(function(){
+    var store = loadAll();
+    if(store[studentKey(state.student)]) store[studentKey(state.student)].sent = true;
+    saveAll(store);
+    status("제출 완료 (" + timeText(new Date()) + ")");
+    toast("제출했습니다");
+  }).catch(function(err){
+    status("제출 실패 — 이 기기에는 저장됨");
+    toast(err && err.message && err.message.indexOf("암호") >= 0 ? err.message : "인터넷 연결을 확인하고 다시 눌러 주세요");
+  }).then(function(){ btn.disabled = false; });
+});
+
+$("leave").addEventListener("click", function(){ show("gate"); });
+$("to-board").addEventListener("click", drawBoard);
+$("go-board").addEventListener("click", drawBoard);
+$("board-back").addEventListener("click", function(){
+  if(state.student){ show("lab"); setMode(state.mode); }
+  else show("gate");
+});
+
+/* =========================================================
+   9. 기록 모아 보기
+   ========================================================= */
+function drawBoard(){
+  var all = loadAll();
+  var keys = Object.keys(all);
+  var body = $("board-body");
+
+  if(keys.length === 0){
+    body.innerHTML = '<p class="empty">아직 저장된 기록이 없습니다. 실험을 마치고 저장하면 여기에 모입니다.</p>';
+    show("board"); return;
+  }
+
+  keys.sort(function(a,b){
+    var A=all[a].student, B=all[b].student;
+    return (parseInt(A.cls,10)||0)-(parseInt(B.cls,10)||0)
+        || (parseInt(A.no,10)||0)-(parseInt(B.no,10)||0);
+  });
+
+  var h = "";
+  if(SERVER_URL){
+    var pending = 0;
+    for(var q=0;q<keys.length;q++) if(!all[keys[q]].sent) pending++;
+    h += '<p class="muted">제출되지 않은 기록 '+pending+'건</p>'
+       + '<p><button class="btn ghost slim" id="resend">제출 안 된 기록 한꺼번에 제출하기</button></p>';
+  }
+
+  h += '<div class="tbl-scroll"><table><thead><tr><th>반</th><th>번호</th><th>이름</th>'
+     + '<th style="text-align:right">실측 R (Ω)</th>'
+     + '<th style="text-align:right">실측 R²</th>'
+     + '<th style="text-align:right">가상 R (Ω)</th>'
+     + '<th style="text-align:right">가상 R²</th>'
+     + (SERVER_URL ? '<th>제출</th>' : '')
+     + '<th></th></tr></thead><tbody>';
+  var csv = "반,번호,이름,구분,전압(V),전류(A)\n";
+
+  for(var k=0;k<keys.length;k++){
+    var e = all[keys[k]], s = e.student;
+    h += '<tr><td>'+s.cls+'</td><td>'+s.no+'</td><td>'+s.name+'</td>'
+       + '<td class="n">'+(e.R!=null?fmt(e.R,2):"—")+'</td>'
+       + '<td class="n">'+(e.r2!=null?fmt(e.r2,4):"—")+'</td>'
+       + '<td class="n">'+(e.vR!=null?fmt(e.vR,2):"—")+'</td>'
+       + '<td class="n">'+(e.vr2!=null?fmt(e.vr2,4):"—")+'</td>'
+       + (SERVER_URL ? '<td>'+(e.sent ? "완료" : "안 함")+'</td>' : '')
+       + '<td class="del"><button type="button" data-k="'+k+'" aria-label="기록 지우기">×</button></td></tr>';
+
+    var real = cleanRows(e.rows, e.unitA), virt = cleanRows(e.vrows, e.unitA), j;
+    for(j=0;j<real.length;j++) csv += s.cls+","+s.no+","+s.name+",실측,"+real[j].v+","+real[j].i+"\n";
+    for(j=0;j<virt.length;j++) csv += s.cls+","+s.no+","+s.name+",가상,"+virt[j].v+","+virt[j].i+"\n";
+  }
+  h += '</tbody></table></div>';
+  h += '<h2 style="margin-top:32px">표로 옮길 때 쓰는 값</h2>'
+     + '<p class="muted">아래 내용을 모두 선택해 복사한 뒤, 엑셀이나 한셀에 붙여 넣으면 표가 됩니다.</p>'
+     + '<textarea readonly id="csv"></textarea>';
+
+  body.innerHTML = h;
+  $("csv").value = csv;
+
+  var dels = body.querySelectorAll(".del button");
+  for(var m=0;m<dels.length;m++){
+    dels[m].addEventListener("click", function(ev){
+      var idx = parseInt(ev.currentTarget.getAttribute("data-k"),10);
+      var store = loadAll();
+      delete store[keys[idx]];
+      saveAll(store);
+      drawBoard();
+    });
+  }
+
+  var rs = $("resend");
+  if(rs){
+    rs.addEventListener("click", function(){
+      var store = loadAll();
+      var todo = Object.keys(store).filter(function(kk){ return !store[kk].sent; });
+      if(todo.length === 0){ toast("모두 제출되어 있습니다"); return; }
+      rs.disabled = true; rs.textContent = "제출하는 중…";
+      var done = 0, failed = 0;
+      todo.reduce(function(chain, kk){
+        return chain.then(function(){
+          return sendToServer(payloadOf(store[kk])).then(function(){
+            var s2 = loadAll();
+            if(s2[kk]){ s2[kk].sent = true; saveAll(s2); }
+            done++;
+          }).catch(function(){ failed++; });
+        });
+      }, Promise.resolve()).then(function(){
+        toast(done + "건 제출" + (failed ? ", " + failed + "건 실패" : ""));
+        drawBoard();
+      });
+    });
+  }
+
+  show("board");
+}
+
+/* 시작 */
+drawPlot();
+})();
+</script>
+</body>
+</html>
