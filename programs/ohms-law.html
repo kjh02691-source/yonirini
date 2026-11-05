@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>옴의 법칙 실험실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F2F4F1;
+  --card:#FFFFFF;
+  --ink:#1B2A24;
+  --ink-soft:#5E6F67;
+  --rule:#CBD6CE;
+  --grid:#DEE6E0;
+  --copper:#B0642B;
+  --copper-soft:#EADACB;
+  --blue:#2B5A86;
+  --focus:#2B5A86;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#141816;
+    --card:#1C2220;
+    --ink:#E6EDE8;
+    --ink-soft:#9AAAA2;
+    --rule:#2E3835;
+    --grid:#28322E;
+    --copper:#D98C4A;
+    --copper-soft:#3A2B1E;
+    --blue:#7FB0DA;
+    --focus:#7FB0DA;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#141816; --card:#1C2220; --ink:#E6EDE8; --ink-soft:#9AAAA2;
+  --rule:#2E3835; --grid:#28322E; --copper:#D98C4A; --copper-soft:#3A2B1E;
+  --blue:#7FB0DA; --focus:#7FB0DA;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans KR",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  font-size:15px;
+  line-height:1.65;
+  -webkit-text-size-adjust:100%;
+}
+.num{font-family:"IBM Plex Mono","IBM Plex Sans KR",monospace;font-variant-numeric:tabular-nums}
+.wrap{max-width:1040px;margin:0 auto;padding:28px 20px 64px}
+h1,h2,h3{margin:0;font-weight:600;line-height:1.3}
+h1{font-size:1.5rem;letter-spacing:-.01em}
+h2{font-size:1.05rem}
+p{margin:.4em 0}
+.muted{color:var(--ink-soft);font-size:.86rem}
+button{font:inherit;cursor:pointer}
+input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* ---------- 입장 화면 ---------- */
+#gate{min-height:100svh;display:grid;place-items:center;padding:24px}
+.gate-box{width:100%;max-width:420px}
+.circuit{width:100%;height:auto;margin-bottom:26px;display:block}
+.gate-box h1{margin-bottom:6px}
+.gate-box .lede{color:var(--ink-soft);margin:0 0 26px;font-size:.92rem}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:.8rem;color:var(--ink-soft);margin-bottom:5px}
+.field input{
+  width:100%;padding:10px 12px;background:var(--card);
+  border:1px solid var(--rule);border-radius:6px;
+}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{
+  width:100%;padding:11px 16px;border:1px solid var(--copper);
+  background:var(--copper);color:#fff;border-radius:6px;font-weight:500;
+}
+:root[data-theme="dark"] .btn, :root:not([data-theme="light"]) .btn{color:#14100B}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .btn{color:#fff}}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn.slim{width:auto;padding:7px 13px;font-size:.87rem}
+
+/* ---------- 실험 화면 ---------- */
+.topbar{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;
+  justify-content:space-between;border-bottom:1px solid var(--rule);
+  padding-bottom:14px;margin-bottom:24px;
+}
+.who{font-size:.9rem;color:var(--ink-soft)}
+.who b{color:var(--ink);font-weight:500}
+.cols{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:760px){.cols{grid-template-columns:1fr}}
+
+table{border-collapse:collapse;width:100%}
+th,td{padding:0;text-align:left}
+thead th{
+  font-size:.76rem;font-weight:500;color:var(--ink-soft);
+  padding:0 6px 6px;border-bottom:1px solid var(--rule);
+}
+tbody td{border-bottom:1px solid var(--grid);padding:2px 0}
+tbody input{
+  width:100%;padding:8px 6px;background:transparent;border:0;
+  border-radius:4px;text-align:right;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+tbody input:focus{background:var(--card)}
+td.calc{
+  padding-right:6px;text-align:right;color:var(--ink-soft);font-size:.85rem;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+td.del{width:26px;text-align:center}
+.del button{
+  border:0;background:transparent;color:var(--ink-soft);
+  padding:4px 6px;border-radius:4px;line-height:1;
+}
+.del button:hover{color:var(--copper)}
+.tbl-foot{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+.opts{margin-top:22px;padding-top:16px;border-top:1px solid var(--rule);display:grid;gap:9px}
+.opt{display:flex;align-items:center;gap:8px;font-size:.87rem}
+
+/* ---------- 그래프 ---------- */
+.chart-card{background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:14px}
+svg.plot{width:100%;height:auto;display:block}
+.readout{
+  margin-top:18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:2px;
+  border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--rule)
+}
+.cell{background:var(--card);padding:12px 14px}
+.cell .k{font-size:.76rem;color:var(--ink-soft)}
+.cell .v{font-size:1.12rem;font-weight:500;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.verdict{margin-top:14px;font-size:.9rem;padding:11px 14px;border-radius:8px;background:var(--copper-soft);color:var(--ink)}
+.actions{display:flex;gap:8px;margin-top:22px;flex-wrap:wrap}
+.hint{margin-top:10px}
+
+/* ---------- 결과 모음 ---------- */
+.board table{margin-top:14px}
+.board tbody td{padding:9px 6px;font-size:.9rem;border-bottom:1px solid var(--grid)}
+.board td.n{text-align:right;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+textarea{
+  width:100%;min-height:160px;margin-top:14px;padding:12px;background:var(--card);
+  color:inherit;border:1px solid var(--rule);border-radius:6px;
+  font-family:"IBM Plex Mono",monospace;font-size:.82rem;line-height:1.7;
+}
+.empty{padding:28px 0;color:var(--ink-soft)}
+.toast{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%);
+  background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:999px;
+  font-size:.88rem;opacity:0;pointer-events:none;transition:opacity .2s
+}
+.toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<!-- ======== 1. 입장 화면 ======== -->
+<section id="gate" class="screen">
+  <div class="gate-box">
+    <svg class="circuit" viewBox="0 0 320 96" fill="none" aria-hidden="true">
+      <g stroke="var(--copper)" stroke-width="2" stroke-linecap="round">
+        <path d="M18 70 L18 34 M18 34 L108 34"/>
+        <path d="M148 34 L214 34"/>
+        <path d="M254 34 L302 34 L302 70 L18 70"/>
+        <path d="M108 20 L108 48 M120 12 L120 56 M132 20 L132 48 M144 12 L144 56"/>
+        <rect x="214" y="22" width="40" height="24" rx="2"/>
+      </g>
+      <circle cx="160" cy="70" r="15" fill="var(--card)" stroke="var(--copper)" stroke-width="2"/>
+      <text x="160" y="76" text-anchor="middle" font-size="15" font-family="IBM Plex Mono, monospace" fill="var(--copper)">A</text>
+      <text x="234" y="16" text-anchor="middle" font-size="12" font-family="IBM Plex Mono, monospace" fill="var(--ink-soft)">R</text>
+    </svg>
+    <h1>옴의 법칙 실험실</h1>
+    <p class="lede">전압과 전류를 재어 넣으면 그래프가 그려집니다. 그래프의 기울기에서 저항을 구해 보세요.</p>
+    <div class="row2">
+      <div class="field"><label for="g-cls">반</label><input id="g-cls" inputmode="numeric" placeholder="3"></div>
+      <div class="field"><label for="g-no">번호</label><input id="g-no" inputmode="numeric" placeholder="14"></div>
+    </div>
+    <div class="field"><label for="g-name">이름</label><input id="g-name" placeholder="홍길동"></div>
+    <button class="btn" id="enter">실험 시작하기</button>
+    <p class="muted hint">저장한 기록은 이 기기에 남습니다. 같은 반·번호·이름으로 다시 들어오면 이어서 할 수 있어요.</p>
+    <p class="muted hint"><button class="btn ghost slim" id="go-board">저장된 기록 모아 보기</button></p>
+  </div>
+</section>
+
+<!-- ======== 2. 실험 화면 ======== -->
+<section id="lab" class="screen wrap" hidden>
+  <div class="topbar">
+    <div>
+      <h1>옴의 법칙 실험실</h1>
+      <div class="who" id="who"></div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost slim" id="to-board">기록 모아 보기</button>
+      <button class="btn ghost slim" id="leave">나가기</button>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <h2>측정값</h2>
+      <p class="muted">회로에 걸린 전압과 그때 흐른 전류를 한 줄씩 적습니다.</p>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:38%">전압 (V)</th>
+            <th style="width:38%" id="th-i">전류 (mA)</th>
+            <th style="width:24%;text-align:right">V / I</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="tbl-foot">
+        <button class="btn ghost slim" id="add-row">줄 추가</button>
+        <button class="btn ghost slim" id="clear">모두 지우기</button>
+      </div>
+
+      <div class="opts">
+        <label class="opt"><input type="checkbox" id="unit-a"> 전류를 A(암페어) 단위로 입력</label>
+        <label class="opt"><input type="checkbox" id="swap"> 가로축을 전류로 바꾸기</label>
+        <label class="opt"><input type="checkbox" id="origin" checked> 직선이 원점을 지나게 하기</label>
+      </div>
+
+      <div class="actions">
+        <button class="btn slim" id="save">내 기록 저장</button>
+        <span class="muted" id="save-status" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div>
+      <div class="chart-card">
+        <svg class="plot" id="plot" viewBox="0 0 520 380" role="img" aria-label="전압과 전류 그래프"></svg>
+      </div>
+      <div class="readout" id="readout"></div>
+      <div class="verdict" id="verdict" hidden></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======== 3. 기록 모아 보기 ======== -->
+<section id="board" class="screen wrap board" hidden>
+  <div class="topbar">
+    <h1>저장된 기록</h1>
+    <button class="btn ghost slim" id="board-back">돌아가기</button>
+  </div>
+  <div id="board-body"></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================
+   0-가. 서버 설정 — 여기 두 줄만 바꾸면 됩니다
+   ---------------------------------------------------------
+   SERVER_URL : Apps Script를 배포하고 받은 웹 앱 주소
+                비워 두면 서버 없이 이 기기에만 저장합니다.
+   CLASS_KEY  : Apps Script에 적어 둔 암호와 똑같이 맞춥니다.
+   ========================================================= */
+var SERVER_URL = "";
+var CLASS_KEY  = "";
+
+// 서버로 한 명분 기록을 보냅니다. 성공하면 true를 돌려줍니다.
+function sendToServer(payload){
+  if(!SERVER_URL) return Promise.resolve(false);
+  return fetch(SERVER_URL, {
+    method: "POST",
+    // text/plain으로 보내야 구글 서버가 중간 확인 절차 없이 바로 받습니다.
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  })
+  .then(function(res){ return res.json(); })
+  .then(function(out){
+    if(!out || !out.ok) throw new Error(out && out.error ? out.error : "서버가 거절했습니다");
+    return true;
+  });
+}
+
+/* =========================================================
+   0-나. 저장소 — 브라우저에 데이터를 남기는 아주 얇은 도구
+   ========================================================= */
+var KEY = "ohmlab.v1";
+
+function loadAll(){
+  try{
+    var raw = localStorage.getItem(KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+function saveAll(obj){
+  try{ localStorage.setItem(KEY, JSON.stringify(obj)); return true; }
+  catch(e){ return false; }
+}
+
+/* =========================================================
+   1. 상태 — 화면이 기억해야 할 값들
+   ========================================================= */
+var state = {
+  student: null,          // {cls, no, name}
+  rows: [],               // [{v:"", i:""}] 문자열 그대로 보관
+  unitA: false,           // true면 전류를 A로 입력
+  swap: false,            // true면 가로축이 전류
+  origin: true            // true면 원점을 지나는 직선
+};
+
+function blankRows(n){
+  var a = [];
+  for(var k=0;k<n;k++) a.push({v:"", i:""});
+  return a;
+}
+function studentKey(s){ return s.cls + "-" + s.no + "-" + s.name; }
+
+/* =========================================================
+   2. 계산 — 최소제곱법과 저항
+   ========================================================= */
+// 입력된 문자열에서 유효한 (전압, 전류) 쌍만 골라 낸다. 전류는 항상 A 단위로 환산.
+function points(){
+  var out = [];
+  for(var k=0;k<state.rows.length;k++){
+    var r = state.rows[k];
+    var v = parseFloat(r.v), i = parseFloat(r.i);
+    if(isFinite(v) && isFinite(i)){
+      out.push({ v:v, i: state.unitA ? i : i/1000 });
+    }
+  }
+  return out;
+}
+
+// y = a·x + b 를 찾는다. origin이 true면 b = 0 으로 고정.
+function fit(xs, ys, throughOrigin){
+  var n = xs.length, k;
+  if(n < 2) return null;
+  var a, b;
+  if(throughOrigin){
+    var sxy=0, sxx=0;
+    for(k=0;k<n;k++){ sxy += xs[k]*ys[k]; sxx += xs[k]*xs[k]; }
+    if(sxx === 0) return null;
+    a = sxy/sxx; b = 0;
+  }else{
+    var sx=0, sy=0, sxy2=0, sxx2=0;
+    for(k=0;k<n;k++){ sx+=xs[k]; sy+=ys[k]; sxy2+=xs[k]*ys[k]; sxx2+=xs[k]*xs[k]; }
+    var den = n*sxx2 - sx*sx;
+    if(den === 0) return null;
+    a = (n*sxy2 - sx*sy)/den;
+    b = (sy - a*sx)/n;
+  }
+  // 결정계수 R²
+  var my=0; for(k=0;k<n;k++) my += ys[k]; my/=n;
+  var ssRes=0, ssTot=0;
+  for(k=0;k<n;k++){
+    var d = ys[k] - (a*xs[k]+b);
+    ssRes += d*d;
+    ssTot += (ys[k]-my)*(ys[k]-my);
+  }
+  var r2 = ssTot === 0 ? 1 : 1 - ssRes/ssTot;
+  return { a:a, b:b, r2:r2 };
+}
+
+// 화면에 쓸 축 데이터와 회귀 결과를 한 번에 만든다.
+function analyse(){
+  var p = points();
+  var iScale = state.unitA ? 1 : 1000;          // 화면에 보여줄 전류 배율
+  var iUnit  = state.unitA ? "A" : "mA";
+  var xs = [], ys = [], k;
+
+  for(k=0;k<p.length;k++){
+    if(state.swap){ xs.push(p[k].i*iScale); ys.push(p[k].v); }
+    else          { xs.push(p[k].v);        ys.push(p[k].i*iScale); }
+  }
+
+  var f = fit(xs, ys, state.origin);
+  var R = null;
+  if(f && f.a !== 0){
+    // 가로축이 전압이면 기울기 = 1/R, 가로축이 전류면 기울기 = R
+    R = state.swap ? (f.a * (state.unitA ? 1 : 1000))
+                   : (1 / (f.a / (state.unitA ? 1 : 1000)));
+    if(!isFinite(R)) R = null;
+  }
+
+  return {
+    xs:xs, ys:ys, fit:f, R:R, n:p.length,
+    xLabel: state.swap ? ("전류 (" + iUnit + ")") : "전압 (V)",
+    yLabel: state.swap ? "전압 (V)" : ("전류 (" + iUnit + ")")
+  };
+}
+
+function fmt(x, digits){
+  if(x === null || !isFinite(x)) return "—";
+  var ax = Math.abs(x);
+  if(ax !== 0 && (ax >= 100000 || ax < 0.001)) return x.toExponential(2);
+  return x.toFixed(digits === undefined ? 3 : digits).replace(/\.?0+$/,"") || "0";
+}
+
+/* =========================================================
+   3. 그래프 그리기 — SVG를 직접 만든다
+   ========================================================= */
+var PAD = { l:62, r:18, t:18, b:52 }, W = 520, H = 380;
+
+function niceStep(range, targetTicks){
+  if(range <= 0) return 1;
+  var raw = range/targetTicks;
+  var mag = Math.pow(10, Math.floor(Math.log(raw)/Math.LN10));
+  var norm = raw/mag;
+  var step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  return step*mag;
+}
+
+function drawPlot(){
+  var d = analyse();
+  var svg = document.getElementById("plot");
+  var xMax = 1, yMax = 1, k;
+  for(k=0;k<d.xs.length;k++) if(d.xs[k] > xMax) xMax = d.xs[k];
+  for(k=0;k<d.ys.length;k++) if(d.ys[k] > yMax) yMax = d.ys[k];
+  xMax *= 1.12; yMax *= 1.12;
+
+  var xStep = niceStep(xMax, 5), yStep = niceStep(yMax, 5);
+  xMax = Math.ceil(xMax/xStep)*xStep;
+  yMax = Math.ceil(yMax/yStep)*yStep;
+
+  var px = function(x){ return PAD.l + (x/xMax)*(W-PAD.l-PAD.r); };
+  var py = function(y){ return H-PAD.b - (y/yMax)*(H-PAD.t-PAD.b); };
+
+  var s = "";
+
+  // 모눈
+  for(var gx=0; gx<=xMax+1e-9; gx+=xStep){
+    var X = px(gx);
+    s += '<line x1="'+X+'" y1="'+PAD.t+'" x2="'+X+'" y2="'+(H-PAD.b)+'" stroke="var(--grid)" stroke-width="1"/>';
+    s += '<text x="'+X+'" y="'+(H-PAD.b+20)+'" text-anchor="middle" font-size="11" fill="var(--ink-soft)" font-family="IBM Plex Mono, monospace">'+fmt(gx,2)+'</text>';
+  }
+  for(var gy=0; gy<=yMax+1e-9; gy+=yStep){
+    var Y = py(gy);
+    s += '<line x1="'+PAD.l+'" y1="'+Y+'" x2="'+(W-PAD.r)+'" y2="'+Y+'" stroke="var(--grid)" stroke-width="1"/>';
+    s += '<text x="'+(PAD.l-9)+'" y="'+(Y+4)+'" text-anchor="end" font-size="11" fill="var(--ink-soft)" font-family="IBM Plex Mono, monospace">'+fmt(gy,2)+'</text>';
+  }
+
+  // 축
+  s += '<line x1="'+PAD.l+'" y1="'+PAD.t+'" x2="'+PAD.l+'" y2="'+(H-PAD.b)+'" stroke="var(--rule)" stroke-width="1.5"/>';
+  s += '<line x1="'+PAD.l+'" y1="'+(H-PAD.b)+'" x2="'+(W-PAD.r)+'" y2="'+(H-PAD.b)+'" stroke="var(--rule)" stroke-width="1.5"/>';
+  s += '<text x="'+((PAD.l+W-PAD.r)/2)+'" y="'+(H-10)+'" text-anchor="middle" font-size="12.5" fill="var(--ink)">'+d.xLabel+'</text>';
+  s += '<text transform="translate(16,'+((PAD.t+H-PAD.b)/2)+') rotate(-90)" text-anchor="middle" font-size="12.5" fill="var(--ink)">'+d.yLabel+'</text>';
+
+  // 추세선
+  if(d.fit){
+    var x1 = 0, x2 = xMax;
+    var y1 = d.fit.a*x1 + d.fit.b, y2 = d.fit.a*x2 + d.fit.b;
+    // 그래프 밖으로 나가면 잘라 준다
+    if(y2 > yMax){ x2 = (yMax - d.fit.b)/d.fit.a; y2 = yMax; }
+    if(y1 < 0){ x1 = (0 - d.fit.b)/d.fit.a; y1 = 0; }
+    if(isFinite(x1)&&isFinite(x2)&&isFinite(y1)&&isFinite(y2)){
+      s += '<line x1="'+px(x1)+'" y1="'+py(y1)+'" x2="'+px(x2)+'" y2="'+py(y2)+'" stroke="var(--blue)" stroke-width="2" stroke-dasharray="6 4"/>';
+    }
+  }
+
+  // 측정점
+  for(k=0;k<d.xs.length;k++){
+    s += '<circle cx="'+px(d.xs[k])+'" cy="'+py(d.ys[k])+'" r="5" fill="var(--copper)" stroke="var(--card)" stroke-width="2"/>';
+  }
+
+  if(d.n === 0){
+    s += '<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" font-size="13" fill="var(--ink-soft)">측정값을 넣으면 여기에 점이 찍힙니다</text>';
+  }
+
+  svg.innerHTML = s;
+  drawReadout(d);
+}
+
+function drawReadout(d){
+  var box = document.getElementById("readout");
+  var slopeUnit = d.fit ? (state.swap ? (state.unitA ? "V/A" : "V/mA") : (state.unitA ? "A/V" : "mA/V")) : "";
+  box.innerHTML =
+    cell("측정한 횟수", d.n + "회") +
+    cell("직선의 기울기", d.fit ? fmt(d.fit.a,4) + " " + slopeUnit : "—") +
+    cell("저항 R", d.R !== null ? fmt(d.R,2) + " Ω" : "—") +
+    cell("직선에 맞는 정도 R²", d.fit ? fmt(d.fit.r2,4) : "—");
+
+  var v = document.getElementById("verdict");
+  if(!d.fit){ v.hidden = true; return; }
+  v.hidden = false;
+  if(d.fit.r2 >= 0.99){
+    v.textContent = "점들이 거의 한 직선 위에 놓였습니다. 전압과 전류가 비례한다는 옴의 법칙이 잘 확인됩니다.";
+  }else if(d.fit.r2 >= 0.95){
+    v.textContent = "대체로 직선을 이루지만 흩어진 점이 있습니다. 눈금을 잘못 읽은 값이 없는지 확인해 보세요.";
+  }else{
+    v.textContent = "점들이 직선에서 많이 벗어났습니다. 단위(mA인지 A인지)와 회로 연결을 다시 확인해 보세요.";
+  }
+}
+function cell(k, v){
+  return '<div class="cell"><div class="k">'+k+'</div><div class="v">'+v+'</div></div>';
+}
+
+/* =========================================================
+   4. 표 그리기
+   ========================================================= */
+function drawRows(){
+  var tb = document.getElementById("rows");
+  tb.innerHTML = "";
+  for(var k=0;k<state.rows.length;k++){
+    (function(idx){
+      var r = state.rows[idx];
+      var tr = document.createElement("tr");
+
+      var tdV = document.createElement("td");
+      var inV = document.createElement("input");
+      inV.type="number"; inV.step="any"; inV.inputMode="decimal";
+      inV.value = r.v; inV.placeholder = "0";
+      inV.setAttribute("aria-label", (idx+1)+"번째 전압");
+      inV.addEventListener("input", function(){ state.rows[idx].v = inV.value; refreshCalc(); });
+      tdV.appendChild(inV);
+
+      var tdI = document.createElement("td");
+      var inI = document.createElement("input");
+      inI.type="number"; inI.step="any"; inI.inputMode="decimal";
+      inI.value = r.i; inI.placeholder = "0";
+      inI.setAttribute("aria-label", (idx+1)+"번째 전류");
+      inI.addEventListener("input", function(){ state.rows[idx].i = inI.value; refreshCalc(); });
+      tdI.appendChild(inI);
+
+      var tdR = document.createElement("td");
+      tdR.className = "calc";
+
+      var tdD = document.createElement("td");
+      tdD.className = "del";
+      var bd = document.createElement("button");
+      bd.type="button"; bd.textContent="×"; bd.title="이 줄 지우기";
+      bd.setAttribute("aria-label",(idx+1)+"번째 줄 지우기");
+      bd.addEventListener("click", function(){
+        state.rows.splice(idx,1);
+        if(state.rows.length === 0) state.rows = blankRows(1);
+        drawRows(); drawPlot();
+      });
+      tdD.appendChild(bd);
+
+      tr.appendChild(tdV); tr.appendChild(tdI); tr.appendChild(tdR); tr.appendChild(tdD);
+      tb.appendChild(tr);
+    })(k);
+  }
+  refreshCalc();
+}
+
+// 각 줄의 V/I 값과 그래프를 다시 계산
+function refreshCalc(){
+  var tb = document.getElementById("rows");
+  for(var k=0;k<state.rows.length;k++){
+    var r = state.rows[k];
+    var v = parseFloat(r.v), i = parseFloat(r.i);
+    var amps = state.unitA ? i : i/1000;
+    var cellEl = tb.rows[k] && tb.rows[k].cells[2];
+    if(cellEl){
+      cellEl.textContent = (isFinite(v)&&isFinite(amps)&&amps!==0) ? fmt(v/amps,1)+" Ω" : "";
+    }
+  }
+  drawPlot();
+}
+
+/* =========================================================
+   5. 화면 전환
+   ========================================================= */
+function show(id){
+  var ids = ["gate","lab","board"];
+  for(var k=0;k<ids.length;k++){
+    document.getElementById(ids[k]).hidden = (ids[k] !== id);
+  }
+  window.scrollTo(0,0);
+}
+
+function toast(msg){
+  var t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("on");
+  setTimeout(function(){ t.classList.remove("on"); }, 1900);
+}
+
+/* =========================================================
+   6. 입장 / 저장 / 불러오기
+   ========================================================= */
+document.getElementById("enter").addEventListener("click", function(){
+  var cls = document.getElementById("g-cls").value.trim();
+  var no  = document.getElementById("g-no").value.trim();
+  var nm  = document.getElementById("g-name").value.trim();
+  if(!nm){ toast("이름을 넣어 주세요"); document.getElementById("g-name").focus(); return; }
+
+  state.student = { cls:cls||"-", no:no||"-", name:nm };
+  var saved = loadAll()[studentKey(state.student)];
+  if(saved){
+    state.rows  = saved.rows && saved.rows.length ? saved.rows : blankRows(5);
+    state.unitA = !!saved.unitA;
+    state.swap  = !!saved.swap;
+    state.origin= saved.origin !== false;
+    toast("지난 기록을 불러왔습니다");
+  }else{
+    state.rows = blankRows(5);
+  }
+
+  document.getElementById("unit-a").checked = state.unitA;
+  document.getElementById("swap").checked   = state.swap;
+  document.getElementById("origin").checked = state.origin;
+  document.getElementById("th-i").textContent = "전류 (" + (state.unitA?"A":"mA") + ")";
+  document.getElementById("who").innerHTML =
+    state.student.cls + "반 " + state.student.no + "번 <b>" + state.student.name + "</b>";
+
+  show("lab"); drawRows();
+});
+
+document.getElementById("add-row").addEventListener("click", function(){
+  state.rows.push({v:"",i:""}); drawRows();
+});
+document.getElementById("clear").addEventListener("click", function(){
+  state.rows = blankRows(5); drawRows();
+});
+document.getElementById("unit-a").addEventListener("change", function(e){
+  state.unitA = e.target.checked;
+  document.getElementById("th-i").textContent = "전류 (" + (state.unitA?"A":"mA") + ")";
+  refreshCalc();
+});
+document.getElementById("swap").addEventListener("change", function(e){
+  state.swap = e.target.checked; drawPlot();
+});
+document.getElementById("origin").addEventListener("change", function(e){
+  state.origin = e.target.checked; drawPlot();
+});
+
+// 서버로 보낼 모양으로 다듬습니다. 전류는 항상 A 단위로 통일합니다.
+function payloadOf(entry){
+  var clean = [];
+  for(var k=0;k<entry.rows.length;k++){
+    var v = parseFloat(entry.rows[k].v), i = parseFloat(entry.rows[k].i);
+    if(isFinite(v) && isFinite(i)) clean.push({ v:v, i: entry.unitA ? i : i/1000 });
+  }
+  return {
+    key: CLASS_KEY,
+    student: entry.student,
+    unit: entry.unitA ? "A" : "mA",
+    rows: clean,
+    R: entry.R, r2: entry.r2, n: entry.n,
+    at: entry.at
+  };
+}
+
+function status(msg){ document.getElementById("save-status").textContent = msg || ""; }
+
+document.getElementById("save").addEventListener("click", function(){
+  var all = loadAll();
+  var d = analyse();
+  var entry = {
+    student: state.student,
+    rows: state.rows,
+    unitA: state.unitA, swap: state.swap, origin: state.origin,
+    R: d.R, r2: d.fit ? d.fit.r2 : null, n: d.n,
+    at: new Date().toISOString(),
+    sent: false
+  };
+  all[studentKey(state.student)] = entry;
+  var okLocal = saveAll(all);
+
+  if(!SERVER_URL){
+    toast(okLocal ? "저장했습니다" : "이 브라우저에서는 저장할 수 없습니다");
+    return;
+  }
+
+  status("보내는 중…");
+  sendToServer(payloadOf(entry)).then(function(){
+    var store = loadAll();
+    if(store[studentKey(state.student)]) store[studentKey(state.student)].sent = true;
+    saveAll(store);
+    status("선생님께 전달됨");
+    toast("제출했습니다");
+  }).catch(function(err){
+    status("전송 실패 — 이 기기에는 저장됨");
+    toast("인터넷 연결을 확인하고 다시 눌러 주세요");
+  });
+});
+
+document.getElementById("leave").addEventListener("click", function(){ show("gate"); });
+document.getElementById("to-board").addEventListener("click", drawBoard);
+document.getElementById("go-board").addEventListener("click", drawBoard);
+document.getElementById("board-back").addEventListener("click", function(){
+  show(state.student ? "lab" : "gate");
+});
+
+/* =========================================================
+   7. 기록 모아 보기
+   ========================================================= */
+function drawBoard(){
+  var all = loadAll();
+  var keys = Object.keys(all);
+  var body = document.getElementById("board-body");
+
+  if(keys.length === 0){
+    body.innerHTML = '<p class="empty">아직 저장된 기록이 없습니다. 실험을 마치고 저장하면 여기에 모입니다.</p>';
+    show("board"); return;
+  }
+
+  keys.sort(function(a,b){
+    var A=all[a].student, B=all[b].student;
+    return (parseInt(A.cls,10)||0)-(parseInt(B.cls,10)||0)
+        || (parseInt(A.no,10)||0)-(parseInt(B.no,10)||0);
+  });
+
+  var h = "";
+  if(SERVER_URL){
+    var pending = 0;
+    for(var q=0;q<keys.length;q++) if(!all[keys[q]].sent) pending++;
+    h += '<p class="muted">전송되지 않은 기록 '+pending+'건</p>'
+       + '<p><button class="btn ghost slim" id="resend">전송 안 된 기록 다시 보내기</button></p>';
+  }
+
+  h += '<table><thead><tr><th>반</th><th>번호</th><th>이름</th>'
+        + '<th style="text-align:right">저항 R (Ω)</th>'
+        + '<th style="text-align:right">R²</th>'
+        + '<th style="text-align:right">측정 횟수</th>'
+        + (SERVER_URL ? '<th>전송</th>' : '')
+        + '<th></th></tr></thead><tbody>';
+  var csv = "반,번호,이름,전압(V),전류(A)\n";
+
+  for(var k=0;k<keys.length;k++){
+    var e = all[keys[k]], s = e.student;
+    h += '<tr><td>'+s.cls+'</td><td>'+s.no+'</td><td>'+s.name+'</td>'
+       + '<td class="n">'+(e.R!=null?fmt(e.R,2):"—")+'</td>'
+       + '<td class="n">'+(e.r2!=null?fmt(e.r2,4):"—")+'</td>'
+       + '<td class="n">'+(e.n||0)+'</td>'
+       + (SERVER_URL ? '<td>'+(e.sent ? "완료" : "대기")+'</td>' : '')
+       + '<td class="del"><button type="button" data-k="'+k+'" aria-label="기록 지우기">×</button></td></tr>';
+
+    for(var j=0;j<(e.rows||[]).length;j++){
+      var v = parseFloat(e.rows[j].v), i = parseFloat(e.rows[j].i);
+      if(isFinite(v)&&isFinite(i)){
+        csv += s.cls+","+s.no+","+s.name+","+v+","+(e.unitA? i : i/1000)+"\n";
+      }
+    }
+  }
+  h += '</tbody></table>';
+  h += '<h2 style="margin-top:32px">표로 옮길 때 쓰는 값</h2>'
+     + '<p class="muted">아래 내용을 모두 선택해 복사한 뒤, 엑셀이나 한셀에 붙여 넣으면 표가 됩니다.</p>'
+     + '<textarea readonly id="csv"></textarea>';
+
+  body.innerHTML = h;
+  document.getElementById("csv").value = csv;
+
+  var dels = body.querySelectorAll(".del button");
+  for(var m=0;m<dels.length;m++){
+    dels[m].addEventListener("click", function(ev){
+      var idx = parseInt(ev.currentTarget.getAttribute("data-k"),10);
+      var store = loadAll();
+      delete store[keys[idx]];
+      saveAll(store);
+      drawBoard();
+    });
+  }
+
+  var rs = document.getElementById("resend");
+  if(rs){
+    rs.addEventListener("click", function(){
+      var store = loadAll();
+      var todo = Object.keys(store).filter(function(kk){ return !store[kk].sent; });
+      if(todo.length === 0){ toast("모두 전송되어 있습니다"); return; }
+      rs.disabled = true; rs.textContent = "보내는 중…";
+
+      // 한 건씩 차례로 보냅니다. 한꺼번에 보내면 구글이 막을 수 있습니다.
+      var done = 0, failed = 0;
+      todo.reduce(function(chain, kk){
+        return chain.then(function(){
+          return sendToServer(payloadOf(store[kk])).then(function(){
+            var s2 = loadAll();
+            if(s2[kk]){ s2[kk].sent = true; saveAll(s2); }
+            done++;
+          }).catch(function(){ failed++; });
+        });
+      }, Promise.resolve()).then(function(){
+        toast(done + "건 전송" + (failed ? ", " + failed + "건 실패" : ""));
+        drawBoard();
+      });
+    });
+  }
+
+  show("board");
+}
+
+/* 시작 */
+drawPlot();
+})();
+</script>
+</body>
+</html>
