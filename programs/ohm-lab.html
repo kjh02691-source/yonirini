@@ -164,6 +164,7 @@ input[type=range]{width:100%;accent-color:var(--copper)}
 .plist{display:flex;flex-wrap:wrap;gap:6px}
 .num-in{width:100%;margin-top:6px;padding:6px 8px;background:var(--paper);border:1px solid var(--rule);border-radius:6px;font-family:"IBM Plex Mono",monospace}
 .kind-row{margin-bottom:14px}
+#listen h3{font-size:.92rem;font-weight:500;margin:0 0 8px}
 .row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .row3 label{font-size:.76rem;color:var(--ink-soft)}
 .wave-card input{width:100%;padding:6px 8px;margin-bottom:8px;background:var(--paper);border:1px solid var(--rule);border-radius:6px;font-size:.86rem}
@@ -295,6 +296,7 @@ textarea{
       </aside>
     </div>
 
+    <div class="card" id="listen" hidden style="margin-top:16px"></div>
     <div class="inst" id="inst"></div>
     <div id="waves-wrap" hidden>
       <h2>담은 파형 <span class="muted" id="waves-count"></span></h2>
@@ -824,7 +826,9 @@ var DEFS = {
               label:function(p){ var L = LEDS[p.color] || LEDS.red; return "LED " + L.name + " " + L.nm + " nm"; } },
   npn:      { name:"트랜지스터", terms:[[-40,0,"B"],[20,-40,"C"],[20,40,"E"]], def:{beta:160}, box:[96,92],
               label:function(p){ return "트랜지스터 β " + p.beta; } },
-  spk:      { name:"스피커", terms:[[-40,0,""],[40,0,""]], def:{sound:false}, box:[92,72],
+  player:   { name:"음원 재생기", terms:[[-60,0,"−"],[60,0,"+"]], def:{vol:0.5, dc:false, dcv:0.5}, box:[128,64],
+              label:function(p){ return "음원 재생기 " + trim3(p.vol) + " V" + (p.dc ? " + 직류 " + trim3(p.dcv) + " V" : ""); } },
+  spk:      { name:"스피커", terms:[[-40,0,""],[40,0,""]], def:{}, box:[92,72],
               label:function(){ return "스피커 8 Ω"; } },
   ammeter:  { name:"전류계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:0.5, mode:"dc"}, box:[92,52], label:null },
   voltmeter:{ name:"전압계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:15, mode:"dc"}, box:[92,52], label:null },
@@ -870,6 +874,13 @@ function partBody(p, st){
     s += q.mode === "dc"
       ? '<path d="M-22 -4 L22 -4 M-22 6 L-12 6 M-4 6 L6 6 M14 6 L22 6" stroke="#F2C94C" stroke-width="2.4"/>'
       : '<path d="M-24 0 C-18 -18 -6 -18 0 0 S18 18 24 0" fill="none" stroke="#F2C94C" stroke-width="2.4"/>';
+    break;
+  case "player":
+    s += lead(-60,-22) + lead(22,60)
+       + '<rect x="-22" y="-30" width="44" height="60" rx="7" fill="#2E3440" stroke="#4C566A"/>'
+       + '<rect x="-17" y="-23" width="34" height="40" rx="2" fill="#88C0D0"/>'
+       + '<path d="M-6 -12 L-6 2 M-6 2 a4 3 0 1 1 -0.1 0 M-6 -12 L6 -15 L6 -1 M6 -1 a4 3 0 1 1 -0.1 0" fill="none" stroke="#2E3440" stroke-width="1.6"/>'
+       + '<circle cx="0" cy="23" r="3" fill="#4C566A"/>';
     break;
   case "sw":
     var ang = 25*Math.PI/180, ex = q.on ? 30 : -30 + 60*Math.cos(ang), ey = q.on ? 0 : -60*Math.sin(ang);
@@ -1060,7 +1071,7 @@ var rt = {};               // 부품마다 시뮬레이션 상태 (온도, 충�
 var nextId = 1;
 var ui = { sel:null, selWire:null, pending:null, drag:null, mouse:null };
 var PALETTE = [
-  ["전원", ["ac","battery"]],
+  ["전원", ["ac","battery","player"]],
   ["연결", ["sw"]],
   ["저항", ["resistor","pot","nichrome","lamp"]],
   ["소자", ["cap","coil","diode","bridge","led","npn","spk"]],
@@ -1106,6 +1117,7 @@ var PRESETS = [
   { group:"RLC 회로", items:[["rc","RC 직렬 (4.7 Ω, 2 µF)"],["rl","RL 직렬 (4.7 Ω, 10 mH)"],["rlc","RLC 직렬 (39 Ω, 2 µF, 10 mH)"]] },
   { group:"다이오드 정류 회로", items:[["half","반파 정류"],["half_c","반파 정류 + 평활 (220 µF)"],["full","전파 정류 (브리지)"],["full_c","전파 정류 + 평활 (220 µF)"]] },
   { group:"트랜지스터 증폭 회로", items:[["led_on","사전 실험: LED가 켜지는 전압"],["tr_sw","실험 1: 스위치 작용"],["tr_amp","실험 2: 전류 증폭률"],["spk_only","스피커만 연결"],["spk_amp","추가 실험: 스피커 증폭"]] },
+  { group:"음원으로 스피커 증폭", items:[["mus_only","음원 + 스피커"],["mus_amp","음원 + 트랜지스터 증폭"],["mus_cmp","두 스피커 비교 (증폭 없음 / 있음)"]] },
   { group:"플랑크 상수", items:[["planck","LED 문턱 전압"]] }
 ];
 var PRESET_KIND = { rc:"fi", rl:"fi", rlc:"fi", planck:"lv", tr_sw:"tr", tr_amp:"tr", ohm:"vi", ser_i:"vi", ser_v:"vi", par_i:"vi", par_v:"vi" };
@@ -1171,19 +1183,37 @@ function buildPreset(id){
     }
     break;
   case "spk_only":
-    s = S("sine", 0.5, 500); sp = P("spk",500,220,0,{sound:true});
+    s = S("sine", 0.5, 500); sp = P("spk",500,220,0);
     Wr(s,1,sp,0,true); Wr(sp,1,s,0,true); break;
+  case "mus_only":
+    s = P("player",200,500,2); sp = P("spk",500,220,0);
+    Wr(s,1,sp,0,true); Wr(sp,1,s,0,true); break;
+  case "mus_amp": case "mus_cmp":
+    var dx = id === "mus_cmp" ? 120 : 0;
+    if(id === "mus_cmp"){
+      var s0 = P("player",140,480,2), sp0 = P("spk",140,300,0);
+      Wr(s0,1,sp0,0,true); Wr(sp0,1,s0,0,true);
+    }
+    s = P("player",200+dx,500,2); c = P("cap",300+dx,220,2,{c:220}); q = P("npn",520+dx,300,0,{beta:160});
+    rb = P("resistor",400+dx,380,1,{r:22000}); bt = P("battery",760+dx,500,0,{cells:4});
+    r1 = P("resistor",660+dx,140,0,{r:1000}); sp = P("spk",760+dx,300,1);
+    Wr(s,1,c,1,true); Wr(c,0,q,0,false); Wr(c,0,rb,0,false); Wr(rb,1,s,0,true); Wr(q,2,s,0,true);
+    Wr(bt,0,s,0); Wr(bt,1,sp,1,true); Wr(bt,1,r1,1,true); Wr(r1,0,q,0,false); Wr(sp,0,q,1);
+    break;
   case "spk_amp":
     s = S("sine", 0.1, 500); c = P("cap",300,220,2,{c:220}); q = P("npn",520,300,0,{beta:160});
     rb = P("resistor",400,380,1,{r:22000}); bt = P("battery",760,500,0,{cells:4});
-    r1 = P("resistor",660,140,0,{r:1000}); sp = P("spk",760,300,1,{sound:true});
+    r1 = P("resistor",660,140,0,{r:1000}); sp = P("spk",760,300,1);
     Wr(s,1,c,1,true); Wr(c,0,q,0,false); Wr(c,0,rb,0,false); Wr(rb,1,s,0,true); Wr(q,2,s,0,true);
     Wr(bt,0,s,0); Wr(bt,1,sp,1,true); Wr(bt,1,r1,1,true); Wr(r1,0,q,0,false); Wr(sp,0,q,1);
     break;
   }
   if(PRESET_KIND[id]) state.vkind = PRESET_KIND[id];
   vs.chosen = true;
-  if(circuit.parts.some(function(p){ return p.type === "spk" && p.p.sound; })) soundOn();
+  var sp1 = circuit.parts.filter(function(p){ return p.type === "spk"; });
+  listenId = null;
+  if(sp1.length && ensureAudio()) listenId = sp1[0].id;
+  if(circuit.parts.some(function(p){ return p.type === "player"; })) au.playing = true;
   drawRows();
   edited();
 }
@@ -1359,15 +1389,30 @@ function compile(){
     }
   });
 
-  var h = hasAC ? Math.min(1e-3, 1/(maxF*60)) : react ? 1e-3 : 4e-3;
+  // 소리를 계산할 때(음원 재생기가 있거나 스피커를 듣는 중)는 1/16000초마다 계산한다
+  var audio = parts.some(function(p){ return p.type === "player" || (p.type === "spk" && listenId === p.id); });
+  var h = audio ? 1/AUDIO_RATE : hasAC ? Math.min(1e-3, 1/(maxF*60)) : react ? 1e-3 : 4e-3;
+
+  // 계산할 노드: 소리 계산이나 도선 저항을 끈 경우에는 도선으로 이어진 단자를 한 노드로 합쳐 빠르게 계산
+  var merge = audio || !vs.factors.wire, nodeOf = [], M = N, stampWires = wires;
+  if(merge){
+    var map = {}; M = 0;
+    for(var t=0;t<N;t++){ var rr = find(t); if(map[rr] === undefined) map[rr] = M++; nodeOf[t] = map[rr]; }
+    stampWires = [];
+  }else for(var t2=0;t2<N;t2++) nodeOf[t2] = t2;
+  var termDeg = {};
+  Object.keys(idx).forEach(function(k){ termDeg[k] = deg[idx[k]]; });
   var elems = parts.map(function(p){
-    return { p:p, r:rt[p.id], n:DEFS[p.type].terms.map(function(t,k){ return idx[p.id+":"+k]; }), vd:0, vbe:0, vbc:0, d0:0, d1:0, d2:0, d3:0 };
+    var tn = DEFS[p.type].terms.map(function(t,k){ return idx[p.id+":"+k]; });
+    return { p:p, r:rt[p.id], n:tn.map(function(i2){ return nodeOf[i2]; }), cd:tn.map(function(i2){ return deg[i2] > 0; }),
+             vd:0, vbe:0, vbc:0, d0:0, d1:0, d2:0, d3:0 };
   });
   var psu = parts.filter(function(p){ return p.type === "ac"; })[0];
-  sim = { N:N, idx:idx, deg:deg, wires:wires, elems:elems, warns:warns, nonlin:nonlin, h:h,
-          trap: hasAC,   // 교류가 있으면 사다리꼴 적분(공진에서 정확), 아니면 후진 오일러(안정)
-          tauPk: hasAC ? Math.max(0.15, 3/minF) : 0.3, psu: psu ? [idx[psu.id+":0"], idx[psu.id+":1"]] : null, slow:false,
-          x:new Float64Array(N), A:new Float64Array(N*N), B:new Float64Array(N) };
+  sim = { N:M, termDeg:termDeg, wires:stampWires, elems:elems, warns:warns, nonlin:nonlin, h:h, audio:audio,
+          trap: hasAC || audio,   // 교류·소리가 있으면 사다리꼴 적분(공진에서 정확), 아니면 후진 오일러(안정)
+          tauPk: hasAC ? Math.max(0.15, 3/minF) : 0.3,
+          psu: psu ? [nodeOf[idx[psu.id+":0"]], nodeOf[idx[psu.id+":1"]]] : null, slow:false,
+          x:new Float64Array(M), A:new Float64Array(M*M), B:new Float64Array(M) };
 }
 
 function pnjlim(vnew, vold, vt, vcrit){
@@ -1404,6 +1449,7 @@ function gauss(A, B, N){
 }
 
 function stepOnce(h){
+  if(sim.audio) nextSample();
   var N = sim.N; if(!N){ simTime += h; return; }
   var A = sim.A, B = sim.B, x = sim.x, f = vs.factors;
   function g2(a,b,g){ A[a*N+a]+=g; A[b*N+b]+=g; A[a*N+b]-=g; A[b*N+a]-=g; }
@@ -1419,10 +1465,13 @@ function stepOnce(h){
   for(it=0; it<maxIt; it++){
     A.fill(0); B.fill(0);
     for(var i=0;i<N;i++) A[i*N+i] += PHYS.openG;
-    sim.wires.forEach(function(w){ g2(w[0], w[1], 1/(f.wire ? PHYS.wireR : PHYS.idealR)); });
-    sim.elems.forEach(function(e){
+    var gw = 1/(f.wire ? PHYS.wireR : PHYS.idealR);
+    for(var wi=0; wi<sim.wires.length; wi++) g2(sim.wires[wi][0], sim.wires[wi][1], gw);
+    for(var ei=0; ei<sim.elems.length; ei++){ var e = sim.elems[ei];
       var p = e.p, r = e.r, n = e.n, q = p.p;
       switch(p.type){
+      case "player":
+        var Ep = curSample*q.vol + (q.dc ? q.dcv : 0); g2(n[0], n[1], 1/2); inj(n[0], n[1], Ep*2); break;   // 이어폰 단자 내부저항 2 Ω
       case "battery": case "ac":
         if(r.blocked) break;
         var rs = srcR(p); g2(n[0], n[1], 1/rs); inj(n[0], n[1], srcE(p)/rs); break;
@@ -1455,16 +1504,16 @@ function stepOnce(h){
       case "ammeter": g2(n[0], n[1], (r.blocked || r.over) ? PHYS.openG : 1/ammR(p)); break;
       case "voltmeter": if(!r.blocked) g2(n[0], n[1], voltG(p)); break;
       }
-    });
+    }
     var xn = gauss(A, B, N), dmax = 0;
     for(var j=0;j<N;j++){ var dd = Math.abs(xn[j]-x[j]); if(dd > dmax) dmax = dd; }
     x.set(xn);
-    if(dmax < 1e-7 && it > 0) break;
+    if(dmax < 1e-6 && it > 0) break;
   }
 
   // 한 걸음 뒤의 상태 갱신
   var damp = 1 - Math.exp(-h/0.18);
-  sim.elems.forEach(function(e){
+  for(var ej=0; ej<sim.elems.length; ej++){ var e = sim.elems[ej];
     var p = e.p, r = e.r, n = e.n, q = p.p, v = x[n[0]] - x[n[1]];
     switch(p.type){
     case "resistor": case "nichrome": case "lamp":
@@ -1507,18 +1556,18 @@ function stepOnce(h){
       track(r, r.val, h);
       r.disp += ((q.mode === "ac" ? r.amp : r.val) - r.disp)*damp;
       break;
-    case "spk": r.i = v/8; track(r, r.i, h); break;
+    case "spk": r.i = v/8; track(r, r.i, h); if(p.id === listenId) pushOut(v); break;
     case "scope":
       if(r.frozen) break;
-      var c1 = sim.deg[n[0]] > 0 && sim.deg[n[1]] > 0 ? x[n[0]] - x[n[1]] : NaN;
-      var c2 = sim.deg[n[2]] > 0 && sim.deg[n[3]] > 0 ? x[n[2]] - x[n[3]] : NaN;
+      var c1 = e.cd[0] && e.cd[1] ? x[n[0]] - x[n[1]] : NaN;
+      var c2 = e.cd[2] && e.cd[3] ? x[n[2]] - x[n[3]] : NaN;
       var c3 = sim.psu ? x[sim.psu[1]] - x[sim.psu[0]] : NaN;
       var bf = r.buf || (r.buf = { t:new Float64Array(SCOPE_LEN), a:new Float32Array(SCOPE_LEN), b:new Float32Array(SCOPE_LEN), c:new Float32Array(SCOPE_LEN), head:0, n:0, last:0 });
       bf.t[bf.head] = simTime + h; bf.a[bf.head] = c1; bf.b[bf.head] = c2; bf.c[bf.head] = c3;
       bf.head = (bf.head + 1) % SCOPE_LEN; bf.n = Math.min(bf.n + 1, SCOPE_LEN); bf.last = simTime + h;
       break;
     }
-  });
+  }
   simTime += h;
 }
 var SCOPE_LEN = 40000;
@@ -1647,8 +1696,20 @@ function renderProps(){
     h += '<p class="muted">B(베이스)에 작은 전류가 흐르면 C(컬렉터)에서 E(이미터)로 약 β배의 전류가 흐릅니다. (2SC1008)</p>';
     break;
   case "spk":
-    h += '<p class="muted">저항 8 Ω짜리 스피커입니다. 교류 전류가 흐르면 소리가 납니다.</p>'
-       + '<button class="btn slim" type="button" data-act="sound" data-pid="'+id+'">'+(q.sound ? "소리 끄기" : "소리 켜기")+'</button>';
+    h += '<p class="muted">저항 8 Ω짜리 스피커입니다. 스피커 양 끝에 걸린 전압이 그대로 컴퓨터 소리로 나옵니다.</p>'
+       + '<button class="btn slim" type="button" data-act="listen" data-pid="'+id+'">'+(listenId === id ? "소리 끄기" : "이 스피커 소리 듣기")+'</button>';
+    break;
+  case "player":
+    ctl("음원", '<div class="seg">' + [["melody","기본 멜로디"],["file","음악 파일"],["mic","마이크"]].map(function(o){
+      return '<button type="button" data-src="'+o[0]+'" aria-pressed="'+(au.src===o[0])+'">'+o[1]+'</button>'; }).join("") + '</div>'
+      + (au.src === "file" ? '<input class="num-in" type="file" accept="audio/*" data-audiofile aria-label="음악 파일 고르기">' + (au.name && au.src === "file" ? '<p class="muted">'+esc(au.name)+'</p>' : '') : ''));
+    h += '<div class="prow" style="margin:0 0 14px"><button class="btn slim" type="button" data-play>'+(au.playing ? "일시 정지" : "재생")+'</button>'
+       + (au.src !== "mic" ? '<button class="btn ghost slim" type="button" data-rewind>처음부터</button>' : '') + '</div>';
+    ctl('출력 크기 (최대 전압) <b>'+trim3(q.vol)+' V</b>', seg("vol", [0.05,0.1,0.2,0.5,1], function(v){ return v+" V"; }));
+    ctl("DC 오프셋", '<div class="seg"><button type="button" data-set="dc" data-val="false" data-pid="'+id+'" aria-pressed="'+(!q.dc)+'">끄기</button>'
+      + '<button type="button" data-set="dc" data-val="true" data-pid="'+id+'" aria-pressed="'+q.dc+'">켜기</button></div>'
+      + (q.dc ? '<div style="margin-top:6px">' + seg("dcv", [0.2,0.5,1], function(v){ return v+" V"; }) + '</div>' : ''));
+    h += '<p class="muted">휴대폰을 이어폰 선으로 연결한 것과 같습니다. 판에 있는 모든 음원 재생기는 같은 음원을 함께 냅니다. 실제 음원 기기에는 직류 성분(DC 오프셋)이 섞여 있을 수 있어서, 축전기로 걸러 주지 않으면 트랜지스터가 제대로 증폭하지 못합니다.</p>';
     break;
   case "ammeter":
     ctl("단자", seg("range", [0.05,0.5,5], fmtA));
@@ -1785,7 +1846,7 @@ function drawScopes(){
     svg.innerHTML = s;
     var el = $("ms-"+p.id);
     if(el && sim){
-      var dg = function(k){ return sim.deg[sim.idx[p.id+":"+k]] > 0; };
+      var dg = function(k){ return sim.termDeg[p.id+":"+k] > 0; };
       var any = (dg(0) && dg(1)) || (dg(2) && dg(3)) || q.src;
       el.textContent = r.frozen ? "멈춤"
         : !any ? "1+와 1− 단자(또는 2+와 2− 단자)를 재고 싶은 곳 양 끝에 연결하세요"
@@ -1811,7 +1872,7 @@ function renderWarns(){
 
 // 회로가 바뀐 뒤 한 번에 다시 그린다
 function edited(){
-  compile(); renderBoard(); renderProps(); renderInstruments(); renderWarns(); updateChooser(); renderToolbar();
+  compile(); renderBoard(); renderProps(); renderInstruments(); renderWarns(); updateChooser(); renderToolbar(); renderListen();
 }
 
 /* =========================================================
@@ -1929,7 +1990,7 @@ $("vpanel").addEventListener("click", function(e){
   var b = e.target.closest("[data-set],[data-act],[data-add]"); if(!b) return;
   var pid = +b.getAttribute("data-pid"), p = partById(pid), act = b.getAttribute("data-act");
   if(b.hasAttribute("data-set") && p){
-    var key = b.getAttribute("data-set"), raw = b.getAttribute("data-val"), val = isNaN(+raw) ? raw : +raw;
+    var key = b.getAttribute("data-set"), raw = b.getAttribute("data-val"), val = raw === "true" ? true : raw === "false" ? false : isNaN(+raw) ? raw : +raw;
     p.p[key] = val;
     if(["r","len","dia","color","c","l"].indexOf(key) >= 0){ rt[pid].T = PHYS.T0; rt[pid].broken = false; }
     if(key === "tdiv" || key === "vdiv"){ instKey = ""; renderInstruments(); renderProps(); return; }
@@ -1941,7 +2002,7 @@ $("vpanel").addEventListener("click", function(e){
     edited(); return;
   }
   if(act === "toggle" && p){ p.p.on = !p.p.on; edited(); }
-  else if(act === "sound" && p){ p.p.sound = !p.p.sound; if(p.p.sound && !soundOn()) toast("이 브라우저에서는 소리를 낼 수 없습니다"); renderProps(); }
+  else if(act === "listen" && p) setListen(listenId === pid ? null : pid);
   else if(act === "capture" && p) captureWave(p);
   else if(act === "wvdel"){ state.waves.splice(+b.getAttribute("data-w"), 1); renderWaves(); }
   else if(act === "ssrc" && p){ p.p.src = !p.p.src; instKey = ""; renderInstruments(); renderProps(); }
@@ -2099,7 +2160,7 @@ function updateLive(){
    ========================================================= */
 var raf = null, lastT = 0, lastSlow = 0;
 function loop(ts){
-  if(state.mode !== "virtual" || $("lab").hidden){ raf = null; updateSound(true); return; }
+  if(state.mode !== "virtual" || $("lab").hidden){ raf = null; return; }
   var dt = lastT ? Math.min((ts - lastT)/1000, 0.1) : 0.016;
   lastT = ts;
   if(sim){
@@ -2113,7 +2174,7 @@ function loop(ts){
   if(ts - lastSlow > 100){
     lastSlow = ts;
     if(!ui.drag) renderBoard();
-    drawScopes(); updateMeters(true); renderWarns(); updateLive(); updateSound();
+    drawScopes(); updateMeters(true); renderWarns(); updateLive(); updateListenStat();
     if(propsDirty) renderProps(); else updatePropsLive();
   }
   raf = requestAnimationFrame(loop);
@@ -2155,36 +2216,220 @@ function renderWaves(){
          + waveSVG(wv) + '<div class="prow"><button class="btn ghost slim" type="button" data-act="wvdel" data-w="'+k+'">지우기</button></div></div>';
   }).join("");
 }
+$("listen").addEventListener("click", function(e){
+  var b = e.target.closest("[data-listen],[data-play]"); if(!b) return;
+  if(b.hasAttribute("data-play")){ togglePlay(); return; }
+  var v = b.getAttribute("data-listen");
+  setListen(v === "off" ? null : +v);
+});
+$("listen").addEventListener("input", function(e){
+  if(!e.target.hasAttribute("data-master")) return;
+  au.master = e.target.value/100;
+  if(au.gain) au.gain.gain.setTargetAtTime(au.master, au.ctx.currentTime, 0.02);
+});
+$("props").addEventListener("click", function(e){
+  var b = e.target.closest("[data-src],[data-play],[data-rewind]"); if(!b) return;
+  if(b.hasAttribute("data-play")){ togglePlay(); return; }
+  if(b.hasAttribute("data-rewind")){ au.pos = 0; return; }
+  var src = b.getAttribute("data-src");
+  if(src === "mic"){ startMic(); return; }
+  stopMic();
+  if(src === "melody"){ au.buf = makeMelody(); au.name = "기본 멜로디"; au.pos = 0; au.playing = true; ensureAudio(); }
+  au.src = src; renderProps(); renderListen();
+});
+$("props").addEventListener("change", function(e){
+  if(e.target.hasAttribute("data-audiofile") && e.target.files[0]) loadAudioFile(e.target.files[0]);
+});
+function togglePlay(){
+  if(au.src === "mic" && !au.micStream){ startMic(); return; }
+  au.playing = !au.playing;
+  if(au.playing) ensureAudio();
+  renderProps(); renderListen();
+}
 $("waves").addEventListener("change", function(e){
   var k = e.target.getAttribute("data-wlabel");
   if(k !== null && state.waves[+k]) state.waves[+k].label = e.target.value.slice(0, 60);
 });
 
-/* ---------- 스피커 소리 ---------- */
-var audio = { ctx:null, osc:null, gain:null };
-function soundOn(){
+/* ---------- 소리: 회로 계산 결과를 그대로 재생 ---------- */
+var AUDIO_RATE = 16000;          // 소리 계산 정밀도 (1초에 16000번)
+var listenId = null;             // 지금 듣는 스피커
+var au = {
+  ctx:null, proc:null, gain:null, master:0.7,
+  out:new Float32Array(AUDIO_RATE*2), ow:0, or:0, ofrac:0, under:0,    // 스피커 → 컴퓨터 소리
+  src:"melody", playing:false, buf:null, pos:0, name:"",              // 음원 (기본 멜로디 / 파일 / 마이크)
+  mic:null, micProc:null, micStream:null, inb:new Float32Array(AUDIO_RATE*2), iw:0, ir:0, micStarted:false,
+  micLoud:0, lastHowl:0, micFrac:0, micAcc:0, micN:0
+};
+function ensureAudio(){
   try{
-    if(!audio.ctx){
+    if(!au.ctx){
       var AC = window.AudioContext || window.webkitAudioContext;
-      if(!AC) return false;
-      audio.ctx = new AC(); audio.osc = audio.ctx.createOscillator(); audio.gain = audio.ctx.createGain();
-      audio.gain.gain.value = 0; audio.osc.connect(audio.gain); audio.gain.connect(audio.ctx.destination); audio.osc.start();
+      if(!AC){ toast("이 브라우저에서는 소리를 낼 수 없습니다"); return false; }
+      au.ctx = new AC();
+      au.proc = au.ctx.createScriptProcessor(2048, 1, 1);
+      au.proc.onaudioprocess = audioOut;
+      var hp = au.ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 40;   // 스피커는 직류 성분으로는 소리가 나지 않음
+      au.gain = au.ctx.createGain(); au.gain.gain.value = au.master;
+      var lim = au.ctx.createDynamicsCompressor(); lim.threshold.value = -6; lim.ratio.value = 12;   // 귀를 보호하는 제한기
+      au.proc.connect(hp); hp.connect(au.gain); au.gain.connect(lim); lim.connect(au.ctx.destination);
     }
-    audio.ctx.resume();
+    if(au.ctx.state === "suspended") au.ctx.resume();
     return true;
-  }catch(e){ return false; }
+  }catch(e){ toast("소리를 켜지 못했습니다"); return false; }
 }
-function updateSound(mute){
-  if(!audio.ctx) return;
-  var amp = 0, f = 0;
-  if(!mute) circuit.parts.forEach(function(p){
-    if(p.type === "spk" && p.p.sound && rt[p.id]) amp = Math.max(amp, (rt[p.id].amp || 0)*8);
-    if(p.type === "ac" && p.p.mode === "sine") f = Math.max(f, p.p.f);
+function fill(ring, w, r){ return (w - r + ring.length) % ring.length; }
+// 스피커 전압 한 개를 소리 줄에 넣기 (회로 계산 1번마다)
+function pushOut(v){
+  if(!au.ctx || listenId === null) return;
+  var o = au.out; o[au.ow] = v/4; au.ow = (au.ow + 1) % o.length;          // 스피커 전압 4 V를 최대 음량으로
+  if(fill(o, au.ow, au.or) > AUDIO_RATE*0.4) au.or = (au.ow - AUDIO_RATE*0.15 + o.length) % o.length;  // 너무 밀리면 따라잡기
+}
+function audioOut(ev){
+  var out = ev.outputBuffer.getChannelData(0), step = AUDIO_RATE/au.ctx.sampleRate, o = au.out;
+  for(var k=0;k<out.length;k++){
+    if(listenId === null || fill(o, au.ow, au.or) < 2){ out[k] = 0; if(listenId !== null) au.under++; continue; }
+    var a = o[au.or], b = o[(au.or+1) % o.length];
+    out[k] = a + (b - a)*au.ofrac;
+    au.ofrac += step;
+    while(au.ofrac >= 1){ au.ofrac -= 1; au.or = (au.or + 1) % o.length; }
+  }
+}
+// 음원 재생기가 내는 신호 (−1 ~ 1), 회로 계산 1번마다 하나씩
+var curSample = 0;
+function nextSample(){
+  if(!au.playing){ curSample = 0; return; }
+  if(au.src === "mic"){
+    var b = au.inb, f = fill(b, au.iw, au.ir);
+    if(!au.micStarted){ if(f > AUDIO_RATE*0.1) au.micStarted = true; else { curSample = 0; return; } }
+    if(f < 1){ au.micStarted = false; curSample = 0; return; }
+    curSample = b[au.ir]; au.ir = (au.ir + 1) % b.length;
+    if(f > AUDIO_RATE*0.5) au.ir = (au.iw - AUDIO_RATE*0.1 + b.length) % b.length;
+    return;
+  }
+  if(!au.buf){ au.buf = makeMelody(); au.name = "기본 멜로디"; }
+  curSample = au.buf[au.pos]; au.pos = (au.pos + 1) % au.buf.length;
+}
+// 기본 멜로디: 작은 별 (피아노 비슷한 소리)
+function makeMelody(){
+  var notes = [60,60,67,67,69,69,67,0, 65,65,64,64,62,62,60,0], dur = 0.42, n = Math.round(AUDIO_RATE*dur);
+  var buf = new Float32Array(n*notes.length);
+  notes.forEach(function(m, i){
+    if(!m) return;
+    var f = 440*Math.pow(2, (m-69)/12);
+    for(var k=0;k<n;k++){
+      var t = k/AUDIO_RATE, env = Math.min(1, t/0.01)*Math.exp(-t*4);
+      buf[i*n+k] = env*(0.6*Math.sin(2*Math.PI*f*t) + 0.25*Math.sin(4*Math.PI*f*t) + 0.12*Math.sin(6*Math.PI*f*t));
+    }
   });
-  var g = f >= 20 ? clamp(amp/4, 0, 1)*0.3 : 0, now = audio.ctx.currentTime;
-  audio.osc.frequency.setTargetAtTime(clamp(f || 440, 20, 8000), now, 0.02);
-  audio.gain.gain.setTargetAtTime(g, now, 0.05);
+  return buf;
 }
+// 음악 파일 → 16 kHz 한 채널로 바꾸기
+function loadAudioFile(file){
+  if(!ensureAudio()) return;
+  toast("음원을 불러오는 중…");
+  file.arrayBuffer().then(function(ab){
+    return new Promise(function(res, rej){ au.ctx.decodeAudioData(ab, res, rej); });
+  }).then(function(decoded){
+    var len = Math.ceil(decoded.duration*AUDIO_RATE);
+    var off = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, len, AUDIO_RATE);
+    var sn = off.createBufferSource(); sn.buffer = decoded; sn.connect(off.destination); sn.start();
+    return off.startRendering();
+  }).then(function(rendered){
+    var d = rendered.getChannelData(0), peak = 0;
+    for(var k=0;k<d.length;k++) peak = Math.max(peak, Math.abs(d[k]));
+    var buf = new Float32Array(d.length);
+    for(k=0;k<d.length;k++) buf[k] = peak > 0 ? d[k]/peak : 0;
+    au.buf = buf; au.pos = 0; au.src = "file"; au.name = file.name; au.playing = true;
+    stopMic(); renderProps(); renderListen();
+    toast("'" + file.name + "'을(를) 재생합니다");
+  }).catch(function(){ toast("이 파일은 열 수 없습니다. mp3나 wav 파일을 써 보세요"); });
+}
+function startMic(){
+  if(!ensureAudio()) return;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ toast("이 브라우저에서는 마이크를 쓸 수 없습니다"); return; }
+  if(!confirm("마이크 소리를 회로에 넣습니다.\n스피커 소리가 다시 마이크로 들어가 '삐~' 소리(하울링)가 날 수 있으니, 이어폰을 끼고 실험하세요.")) return;
+  navigator.mediaDevices.getUserMedia({ audio:{ echoCancellation:true, noiseSuppression:false, autoGainControl:false } }).then(function(stream){
+    stopMic();
+    au.micStream = stream;
+    au.mic = au.ctx.createMediaStreamSource(stream);
+    au.micProc = au.ctx.createScriptProcessor(2048, 1, 1);
+    var mute = au.ctx.createGain(); mute.gain.value = 0;
+    au.micProc.onaudioprocess = function(ev){
+      var d = ev.inputBuffer.getChannelData(0), step = AUDIO_RATE/au.ctx.sampleRate, b = au.inb, sq = 0;
+      for(var k=0;k<d.length;k++){
+        sq += d[k]*d[k];
+        au.micAcc += d[k]; au.micN++; au.micFrac += step;
+        if(au.micFrac >= 1){ au.micFrac -= 1; b[au.iw] = clamp(au.micAcc/au.micN*3, -1, 1); au.iw = (au.iw + 1) % b.length; au.micAcc = 0; au.micN = 0; }
+      }
+      checkHowl(Math.sqrt(sq/d.length), d.length/au.ctx.sampleRate);
+    };
+    au.mic.connect(au.micProc); au.micProc.connect(mute); mute.connect(au.ctx.destination);
+    au.src = "mic"; au.playing = true; au.micStarted = false;
+    renderProps(); renderListen();
+    toast("마이크 소리를 회로에 넣고 있습니다");
+  }).catch(function(){ toast("마이크를 쓸 수 없습니다. 브라우저의 마이크 권한을 확인하세요"); });
+}
+function stopMic(){
+  if(au.micProc){ try{ au.micProc.disconnect(); au.mic.disconnect(); }catch(e){} }
+  if(au.micStream) au.micStream.getTracks().forEach(function(t){ t.stop(); });
+  au.mic = au.micProc = au.micStream = null;
+}
+// 하울링: 스피커를 듣는 중에 마이크로 큰 소리가 계속 들어오면 음량을 줄인다
+function checkHowl(rms, dt){
+  if(listenId === null){ au.micLoud = 0; return; }
+  au.micLoud = rms > 0.3 ? au.micLoud + dt : 0;
+  if(au.micLoud > 0.4){
+    au.micLoud = 0;
+    au.master = Math.max(0.05, au.master*0.4);
+    if(au.gain) au.gain.gain.setTargetAtTime(au.master, au.ctx.currentTime, 0.02);
+    var now = Date.now();
+    if(now - au.lastHowl > 4000){ au.lastHowl = now; toast("하울링이 생겨 음량을 줄였습니다. 이어폰을 끼고 실험하세요"); }
+    renderListen();
+  }
+}
+function setListen(id){
+  if(id !== null && !ensureAudio()) return;
+  listenId = id; au.or = au.ow; au.under = 0;
+  compile(); renderListen(); renderProps();
+}
+
+// 소리 듣기 패널: 스피커를 골라 번갈아 듣기
+var listenKey = "";
+function renderListen(){
+  var spk = circuit.parts.filter(function(p){ return p.type === "spk"; });
+  var hasPlayer = circuit.parts.some(function(p){ return p.type === "player"; });
+  var box = $("listen");
+  if(!spk.length && !hasPlayer){ box.hidden = true; listenKey = ""; return; }
+  if(listenId !== null && !partById(listenId)) listenId = null;
+  box.hidden = false;
+  var key = spk.map(function(p){ return p.id; }).join(",") + "|" + listenId + "|" + au.src + au.playing + au.name + Math.round(au.master*100);
+  if(key === listenKey) return;
+  listenKey = key;
+  var h = '<h3>소리 듣기</h3><div class="seg">';
+  spk.forEach(function(p, k){
+    h += '<button type="button" data-listen="'+p.id+'" aria-pressed="'+(listenId===p.id)+'">스피커 '+(k+1)+' 듣기</button>';
+  });
+  h += '<button type="button" data-listen="off" aria-pressed="'+(listenId===null)+'">소리 끄기</button></div>';
+  h += '<div class="ctl" style="margin:10px 0 0"><span class="lab">컴퓨터 음량</span><input type="range" min="0" max="100" value="'+Math.round(au.master*100)+'" data-master aria-label="컴퓨터 음량"></div>';
+  if(hasPlayer){
+    h += '<p class="muted">음원: '+esc(au.src === "mic" ? "마이크" : au.name || "기본 멜로디")+(au.playing ? " (재생 중)" : " (멈춤)")
+       + ' <button class="btn ghost slim" type="button" data-play>'+(au.playing ? "일시 정지" : "재생")+'</button></p>';
+  }
+  if(au.src === "mic" && au.playing) h += '<p class="muted">마이크를 쓰는 중입니다. 이어폰을 끼면 하울링 없이 들을 수 있어요.</p>';
+  h += '<p class="mstat" id="listen-stat" style="text-align:left"></p>';
+  box.innerHTML = h;
+}
+function updateListenStat(){
+  var el = $("listen-stat"); if(!el) return;
+  if(listenId === null){ el.textContent = ""; return; }
+  var r = rt[listenId], amp = r ? (r.amp || 0)*8 : 0;
+  el.textContent = au.under > 2000 ? "컴퓨터가 계산을 따라가지 못해 소리가 끊길 수 있습니다. 다른 창을 닫아 보세요."
+                 : "스피커에 걸린 교류 전압 진폭 약 " + fmt(amp, 2) + " V";
+  el.className = "mstat" + (au.under > 2000 ? " bad" : "");
+  au.under = 0;
+}
+
 function startLoop(){ if(!raf){ lastT = 0; raf = requestAnimationFrame(loop); } }
 
 /* =========================================================
@@ -2271,7 +2516,7 @@ $("enter").addEventListener("click", function(){
   ui.sel = null; ui.selWire = null; ui.pending = null;
   vs.revealed = false; vs.factors = copyFactors(HIDDEN_FACTORS); vs.chosen = false; vs.presetOk = false;
   state.frows = blankRows(5); state.lrows = blankRows(4); state.trows = blankRows(3); state.vkind = "vi";
-  state.trp = { rb:22, rc:0.33, vbe:0.6 }; state.waves = []; ui.lastPreset = null;
+  state.trp = { rb:22, rc:0.33, vbe:0.6 }; state.waves = []; ui.lastPreset = null; listenId = null;
   restoreCircuit(null);
   if(saved){
     state.rows  = saved.rows && saved.rows.length ? saved.rows : blankRows(5);

@@ -522,7 +522,9 @@ var DEFS = {
               label:function(p){ var L = LEDS[p.color] || LEDS.red; return "LED " + L.name + " " + L.nm + " nm"; } },
   npn:      { name:"트랜지스터", terms:[[-40,0,"B"],[20,-40,"C"],[20,40,"E"]], def:{beta:160}, box:[96,92],
               label:function(p){ return "트랜지스터 β " + p.beta; } },
-  spk:      { name:"스피커", terms:[[-40,0,""],[40,0,""]], def:{sound:false}, box:[92,72],
+  player:   { name:"음원 재생기", terms:[[-60,0,"−"],[60,0,"+"]], def:{vol:0.5, dc:false, dcv:0.5}, box:[128,64],
+              label:function(p){ return "음원 재생기 " + trim3(p.vol) + " V" + (p.dc ? " + 직류 " + trim3(p.dcv) + " V" : ""); } },
+  spk:      { name:"스피커", terms:[[-40,0,""],[40,0,""]], def:{}, box:[92,72],
               label:function(){ return "스피커 8 Ω"; } },
   ammeter:  { name:"전류계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:0.5, mode:"dc"}, box:[92,52], label:null },
   voltmeter:{ name:"전압계", terms:[[-40,0,"+"],[40,0,"−"]], def:{range:15, mode:"dc"}, box:[92,52], label:null },
@@ -568,6 +570,13 @@ function partBody(p, st){
     s += q.mode === "dc"
       ? '<path d="M-22 -4 L22 -4 M-22 6 L-12 6 M-4 6 L6 6 M14 6 L22 6" stroke="#F2C94C" stroke-width="2.4"/>'
       : '<path d="M-24 0 C-18 -18 -6 -18 0 0 S18 18 24 0" fill="none" stroke="#F2C94C" stroke-width="2.4"/>';
+    break;
+  case "player":
+    s += lead(-60,-22) + lead(22,60)
+       + '<rect x="-22" y="-30" width="44" height="60" rx="7" fill="#2E3440" stroke="#4C566A"/>'
+       + '<rect x="-17" y="-23" width="34" height="40" rx="2" fill="#88C0D0"/>'
+       + '<path d="M-6 -12 L-6 2 M-6 2 a4 3 0 1 1 -0.1 0 M-6 -12 L6 -15 L6 -1 M6 -1 a4 3 0 1 1 -0.1 0" fill="none" stroke="#2E3440" stroke-width="1.6"/>'
+       + '<circle cx="0" cy="23" r="3" fill="#4C566A"/>';
     break;
   case "sw":
     var ang = 25*Math.PI/180, ex = q.on ? 30 : -30 + 60*Math.cos(ang), ey = q.on ? 0 : -60*Math.sin(ang);
